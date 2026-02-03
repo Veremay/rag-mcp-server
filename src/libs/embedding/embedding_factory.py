@@ -1,27 +1,15 @@
 from typing import Dict, Type, Any
 from src.core.settings import Settings
 from src.libs.embedding.base_embedding import BaseEmbedding
+from src.libs.embedding.openai_embedding import OpenAIEmbedding
 
 class EmbeddingFactory:
     """
     Factory for creating Embedding instances based on configuration.
-    Supports dynamic registration of providers.
     """
-    _registry: Dict[str, Type[BaseEmbedding]] = {}
-
-    @classmethod
-    def register(cls, provider: str, embedding_cls: Type[BaseEmbedding]) -> None:
-        """
-        Register a new embedding provider class.
-
-        Args:
-            provider: The provider name (e.g., "openai", "azure").
-            embedding_cls: The class implementing BaseEmbedding.
-        """
-        cls._registry[provider.lower()] = embedding_cls
-
-    @classmethod
-    def create(cls, settings: Settings) -> BaseEmbedding:
+    
+    @staticmethod
+    def create(settings: Settings) -> BaseEmbedding:
         """
         Create an Embedding instance based on the provided settings.
 
@@ -32,19 +20,23 @@ class EmbeddingFactory:
             An instance of BaseEmbedding.
 
         Raises:
-            ValueError: If the provider is not registered.
+            ValueError: If the provider is not supported or missing config.
         """
         provider = settings.embedding.provider.lower()
         
-        if provider not in cls._registry:
-            raise ValueError(
-                f"Unknown embedding provider: '{provider}'. "
-                f"Available providers: {list(cls._registry.keys())}"
+        if provider == "openai":
+            if not settings.embedding.api_key:
+                raise ValueError("OpenAI embedding provider requires api_key")
+            
+            kwargs = {}
+            if settings.embedding.base_url:
+                kwargs["base_url"] = settings.embedding.base_url
+                
+            return OpenAIEmbedding(
+                api_key=settings.embedding.api_key,
+                model=settings.embedding.model,
+                **kwargs
             )
-        
-        embedding_cls = cls._registry[provider]
-        
-        # Here we would typically pass relevant config to the constructor
-        # For now, we pass the whole settings object or specific config
-        # Assuming constructors take settings or **kwargs
-        return embedding_cls(settings)
+            
+        else:
+            raise ValueError(f"Unknown embedding provider: '{provider}'")
