@@ -23,6 +23,13 @@ vector_store:
   persist_path: ./data/db/chroma
   collection_name: knowledge_hub
 
+# Ingestion Configuration
+ingestion:
+  splitter:
+    provider: recursive       # recursive | semantic | fixed
+    chunk_size: 1000
+    chunk_overlap: 200
+
 # Retrieval Configuration
 retrieval:
   sparse_backend: bm25      # bm25 | elasticsearch

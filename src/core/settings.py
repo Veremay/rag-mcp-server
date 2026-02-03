@@ -56,12 +56,24 @@ class ObservabilitySettings:
     dashboard_port: int
 
 @dataclass
+class SplitterSettings:
+    provider: str
+    chunk_size: int = 1000
+    chunk_overlap: int = 200
+
+@dataclass
+class IngestionSettings:
+    splitter: SplitterSettings
+
+@dataclass
 class Settings:
     llm: LLMSettings
     embedding: EmbeddingSettings
     vision_llm: VisionLLMSettings
     vector_store: VectorStoreSettings
+    ingestion: IngestionSettings
     retrieval: RetrievalSettings
+
     rerank: RerankSettings
     evaluation: EvaluationSettings
     observability: ObservabilitySettings
@@ -94,7 +106,7 @@ def validate_settings(config_data: Dict[str, Any]) -> None:
     """Validate critical configuration fields."""
     required_sections = [
         "llm", "embedding", "vision_llm", "vector_store", 
-        "retrieval", "rerank", "evaluation", "observability"
+        "ingestion", "retrieval", "rerank", "evaluation", "observability"
     ]
     
     for section in required_sections:
