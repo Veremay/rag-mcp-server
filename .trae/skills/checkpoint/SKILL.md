@@ -7,7 +7,15 @@ metadata:
 allowed-tools: Bash(python:*) Bash(git:*) Read Write
 ---
 
-# Checkpoint & Progress Persistence
+# Progress Persistence (Anti-Loop Safe)
+
+## Anti-Loop Guardrails
+
+The host environment may auto-trigger skills based on assistant output. To prevent re-entry loops:
+
+1. Never output any exact trigger phrases listed in this file's `metadata.triggers` anywhere in assistant messages.
+2. After emitting the Step 1.5 confirmation prompt, STOP. Do not proceed to Step 2/3 until the user replies.
+3. Do not restate the confirmation prompt more than once per user turn.
 
 This skill handles **task completion summarization** and **progress tracking synchronization**. It ensures that completed work is properly documented and the project schedule in `DEV_SPEC.md` stays up-to-date.
 
@@ -72,7 +80,7 @@ This skill handles **task completion summarization** and **progress tracking syn
                   └────────┬─────────────┘
                            ▼
                   ┌──────────────────────┐
-                  │   Checkpoint Done  │
+                  │        Done         │
                   └──────────────────────┘
 ```
 
@@ -153,7 +161,7 @@ Gather the following from the current session:
  Is this summary accurate?
  以上总结是否准确？
 
-   Please reply: "confirm" / "确认" to save progress to DEV_SPEC.md
+   Please reply: "confirm" / "确认" to write progress back to DEV_SPEC.md
                 "revise" / "修改" to regenerate summary
                 
  Note: This only verifies the summary. DEV_SPEC.md will be updated
@@ -338,8 +346,8 @@ You can manually commit later with:
   git add .
   git commit -m "<subject>" -m "<description>"
 
-Task [Task ID] checkpoint completed!
-任务 [Task ID] 检查点完成！
+Task [Task ID] flow completed!
+任务 [Task ID] 流程已完成！
 ────────────────────────────────────
 ```
 
@@ -347,12 +355,12 @@ Task [Task ID] checkpoint completed!
 
 ## Quick Commands
 
-| User Says | Behavior |
-|-----------|---------|
-| "checkpoint" / "完成检查点" | Full workflow (Step 1-3) with confirmations |
-| "save progress" / "保存进度" | Step 1.5-2 only (confirm + persist) |
-| "commit message" / "生成提交信息" | Step 3 only (generate commit message) |
-| "commit for me" / "帮我提交" | Step 3 + execute git commit |
+| User Intent | Behavior |
+|------------|----------|
+| Run full progress persistence flow | Full workflow (Step 1-3) with confirmations |
+| Only write progress back to DEV_SPEC.md | Step 1.5-2 only (confirm + persist) |
+| Only generate commit message | Step 3 only (generate commit message) |
+| Generate commit message and commit for user | Step 3 + execute git commit |
 
 ---
 
@@ -369,6 +377,6 @@ Task [Task ID] checkpoint completed!
    - Step 3.3: User must confirm before git commit
    - **NEVER skip these confirmations!**
 
-5. **Traceability**: Every checkpoint must reference the specific spec section that defined the task.
+5. **Traceability**: Every progress persistence run must reference the specific spec section that defined the task.
 
 ---
