@@ -30,10 +30,10 @@ Only manually run if:
 
 ```bash
 # Normal sync
-python .github/skills/spec-sync/sync_spec.py
+python .trae/skills/spec-sync/sync_spec.py
 
 # Force regenerate (even if no changes detected)
-python .github/skills/spec-sync/sync_spec.py --force
+python .trae/skills/spec-sync/sync_spec.py --force
 ```
 
 ---
@@ -53,7 +53,7 @@ The script performs these operations:
 **Use `SPEC_INDEX.md` as your entry point** to understand what each spec file contains:
 
 ```
-Read: .github/skills/spec-sync/SPEC_INDEX.md
+Read: .trae/skills/spec-sync/SPEC_INDEX.md
 ```
 
 This index file provides:
@@ -63,7 +63,7 @@ This index file provides:
 Then read the specific spec file you need from `specs/` directory:
 
 ```
-Read: .github/skills/spec-sync/specs/05-architecture.md
+Read: .trae/skills/spec-sync/specs/05-architecture.md
 ```
 
 ---
@@ -71,7 +71,7 @@ Read: .github/skills/spec-sync/specs/05-architecture.md
 ## Directory Structure
 
 ```
-.github/skills/spec-sync/
+.trae/skills/spec-sync/
 ├── SKILL.md              ← This file
 ├── SPEC_INDEX.md         ← Auto-generated index (navigation index)
 ├── sync_spec.py          ← Sync script
@@ -94,5 +94,5 @@ Read: .github/skills/spec-sync/specs/05-architecture.md
 - **Always edit `DEV_SPEC.md`** and re-run the sync script
 - Use `--force` flag to regenerate even if no changes detected:
   ```bash
-  python .github/skills/spec-sync/sync_spec.py --force
+  python .trae/skills/spec-sync/sync_spec.py --force
   ```

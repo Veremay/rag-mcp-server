@@ -12,7 +12,7 @@ allowed-tools: Read Write Bash(python:*) Bash(pytest:*)
 You are the Lead Architect for the Modular RAG MCP Server. When the user asks to implement a feature, you MUST follow this strictly defined workflow.
 
 > **Prerequisite**: This skill depends on `spec-sync` for accessing specification documents.
-> Spec files are located at: `.github/skills/spec-sync/specs/`
+> Spec files are located at: `.trae/skills/spec-sync/specs/`
 
 ---
 
@@ -21,8 +21,8 @@ You are the Lead Architect for the Modular RAG MCP Server. When the user asks to
 
 ### 1.1 Navigate Intelligently
 Instead of reading the entire `DEV_SPEC.md` , use the modular approach:
-- **First**, read `.github/skills/spec-sync/SPEC_INDEX.md` to locate the relevant chapter.
-- **Then**, read only the specific chapter file from `.github/skills/spec-sync/specs/`.
+- **First**, read `.trae/skills/spec-sync/SPEC_INDEX.md` to locate the relevant chapter.
+- **Then**, read only the specific chapter file from `.trae/skills/spec-sync/specs/`.
 
 ### 1.2 Extract Task-Specific Requirements
 Identify key requirements from the targeted chapter:
@@ -60,7 +60,7 @@ Source: specs/XX-xxx.md Section X.X
 Explicitly state to the user which chapter you consulted and which principles apply. Example:
 > *"I have reviewed `specs/03-tech-stack.md` Section 3.3.2. For task B1 (LLM Factory), the applicable design principles are: Pluggable Architecture (abstract base + factory), Configuration-Driven (provider from settings.yaml), and Graceful Error Handling."*
 
-**Chapter Reference Quick Guide** (files in `.github/skills/spec-sync/specs/`):
+**Chapter Reference Quick Guide** (files in `.trae/skills/spec-sync/specs/`):
 - **Architecture questions** → `05-architecture.md`
 - **Tech implementation details** → `03-tech-stack.md`
 - **Testing requirements** → `04-testing.md`
