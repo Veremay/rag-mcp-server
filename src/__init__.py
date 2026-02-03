@@ -1,0 +1,3 @@
+"""
+Modular RAG MCP Server
+"""
