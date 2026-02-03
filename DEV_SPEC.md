@@ -1654,7 +1654,7 @@ observability:
 | B4 | VectorStore 抽象接口与工厂 | [x] | 2026-02-03 | |
 | B5 | Reranker 抽象接口与工厂（含 None 回退） | [x] | 2026-02-03 | |
 | B6 | Evaluator 抽象接口与工厂 | [x] | 2026-02-03 | |
-| B7.1 | OpenAI-Compatible LLM 实现 | [ ] | - | |
+| B7.1 | OpenAI-Compatible LLM 实现 | [x] | 2026-02-03 | |
 | B7.2 | Ollama LLM 实现 | [ ] | - | |
 | B7.3 | OpenAI Embedding 实现 | [ ] | - | |
 | B7.4 | Local Embedding 实现 | [ ] | - | |
@@ -1886,7 +1886,7 @@ observability:
 - **验收标准**：
   - 配置不同 `provider` 时工厂路由正确。
   - `chat(messages)` 对输入 shape 校验清晰，异常信息可读（包含 provider 与错误类型）。
-- **测试方法**：`pytest -q tests/unit/test_llm_providers_smoke.py`。
+- **测试方法**：`pytest -q tests/unit/test_llm_providers.py`。
 
 ### B7.2：Ollama LLM（本地后端）
 - **目标**：补齐 `ollama_llm.py`，支持本地 HTTP endpoint（默认 `base_url` + `model`），并可被 mock 测试。

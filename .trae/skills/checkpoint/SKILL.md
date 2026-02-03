@@ -3,7 +3,7 @@ name: checkpoint
 description: Summarize completed work, update progress tracking in DEV_SPEC.md, and prepare for next iteration. Final stage of dev-workflow pipeline. Use when task implementation and testing is completed, or when user says "完成检查点", "checkpoint", "保存进度", "save progress", "任务完成".
 metadata:
   category: progress-tracking
-  triggers: "checkpoint, save progress, 完成检查点, 保存进度, 任务完成"
+  triggers: "execute_checkpoint_flow, archive_checkpoint"
 allowed-tools: Bash(python:*) Bash(git:*) Read Write
 ---
 
@@ -15,7 +15,7 @@ The host environment may auto-trigger skills based on assistant output. To preve
 
 1. **CRITICAL**: Once this skill is loaded, **YOU** (the model) must execute the workflow steps using standard tools (`Read`, `Write`, `SearchReplace`, `RunCommand`).
 2. **DO NOT** call the `checkpoint` tool again during this workflow.
-3. Never output any exact trigger phrases listed in this file's `metadata.triggers` anywhere in assistant messages.
+3. Never output any exact trigger phrases listed in this file's `metadata.triggers` OR phrases like "TASK COMPLETED" anywhere in assistant messages.
 4. After emitting the Step 1.5 confirmation prompt, STOP. Do not proceed to Step 2/3 until the user replies.
 5. Do not restate the confirmation prompt more than once per user turn.
 
@@ -106,7 +106,7 @@ Gather the following from the current session:
 **Output Format**:
 ```
 ────────────────────────────────────────────────────
- TASK COMPLETED: [Task ID] [Task Name]
+ TASK PROCESSED: [Task ID] [Task Name]
 ────────────────────────────────────────────────────
 
  Files Changed:
@@ -333,8 +333,8 @@ git commit -m "<subject>" -m "<description>"
 Commit: <short hash>
 Branch: <current branch>
 
-Progress saved, task [Task ID] completed!
-进度已保存，任务 [Task ID] 已完成！
+Progress saved, task [Task ID] processed!
+进度已保存，任务 [Task ID] 处理完毕！
 ────────────────────────────────────
 ```
 
@@ -352,8 +352,8 @@ You can manually commit later with:
   git add .
   git commit -m "<subject>" -m "<description>"
 
-Task [Task ID] flow completed!
-任务 [Task ID] 流程已完成！
+Task [Task ID] flow processed!
+任务 [Task ID] 流程处理完毕！
 ────────────────────────────────────
 ```
 
