@@ -13,9 +13,11 @@ allowed-tools: Bash(python:*) Bash(git:*) Read Write
 
 The host environment may auto-trigger skills based on assistant output. To prevent re-entry loops:
 
-1. Never output any exact trigger phrases listed in this file's `metadata.triggers` anywhere in assistant messages.
-2. After emitting the Step 1.5 confirmation prompt, STOP. Do not proceed to Step 2/3 until the user replies.
-3. Do not restate the confirmation prompt more than once per user turn.
+1. **CRITICAL**: Once this skill is loaded, **YOU** (the model) must execute the workflow steps using standard tools (`Read`, `Write`, `SearchReplace`, `RunCommand`).
+2. **DO NOT** call the `checkpoint` tool again during this workflow.
+3. Never output any exact trigger phrases listed in this file's `metadata.triggers` anywhere in assistant messages.
+4. After emitting the Step 1.5 confirmation prompt, STOP. Do not proceed to Step 2/3 until the user replies.
+5. Do not restate the confirmation prompt more than once per user turn.
 
 This skill handles **task completion summarization** and **progress tracking synchronization**. It ensures that completed work is properly documented and the project schedule in `DEV_SPEC.md` stays up-to-date.
 
@@ -186,6 +188,8 @@ Gather the following from the current session:
 
 > **Auto-Execute**: This step runs automatically after Step 1.5 user confirmation. No additional user input required.
 
+**Action**: Use `SearchReplace` tool (NOT `checkpoint` tool) to update the file.
+
 ### 2.1 Locate Task in DEV_SPEC.md
 
 1. Read `DEV_SPEC.md` (the **GLOBAL** file, NOT chapter files)
@@ -235,6 +239,8 @@ Status: [ ] -> [x]
 ## Step 3: Commit Preparation
 
 **Goal**: Generate structured commit message and ask user whether to commit.
+
+**Action**: Use `RunCommand` tool (NOT `checkpoint` tool) to execute git commands.
 
 ### 3.1 Commit Message Template
 
