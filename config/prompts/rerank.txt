@@ -1,0 +1,5 @@
+# Rerank Prompt
+# Input: {query}, {candidates}
+# Output: Ranked list of candidate IDs.
+
+Rank the following candidates based on their relevance to the query.

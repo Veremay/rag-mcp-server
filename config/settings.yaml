@@ -1,0 +1,36 @@
+# Modular RAG MCP Server Configuration
+# Version: 0.1.0
+
+server:
+  host: "0.0.0.0"
+  port: 8000
+  log_level: "INFO"
+
+llm:
+  provider: "openai"  # openai, azure, ollama
+  model: "gpt-4o"
+  api_key: "${OPENAI_API_KEY}"
+
+embedding:
+  provider: "openai" # openai, local
+  model: "text-embedding-3-small"
+  batch_size: 100
+
+vector_store:
+  provider: "chroma"
+  persist_directory: "./data/chroma"
+  collection_name: "rag_knowledge_hub"
+
+retrieval:
+  top_k: 5
+  use_hybrid_search: true
+  use_rerank: true
+
+rerank:
+  provider: "none" # none, cross_encoder, llm
+
+evaluation:
+  provider: "none"
+
+observability:
+  enable_tracing: false

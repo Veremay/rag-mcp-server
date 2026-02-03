@@ -1,0 +1,5 @@
+# Chunk Refinement Prompt
+# Input: {chunk_text}, {document_metadata}
+# Output: Refined chunk with context.
+
+Refine the following text chunk to make it self-contained, adding context from the document metadata if necessary.
