@@ -47,7 +47,7 @@ This skill identifies the **next development task** from the project schedule an
 
 ### 1.1 Read Schedule from Spec
 
-1. Read `.github/skills/spec-sync/specs/06-schedule.md` (Project Schedule)
+1. Read `.trae/skills/spec-sync/specs/06-schedule.md` (Project Schedule)
 2. Parse the task table to identify:
    - All tasks and their status markers
    - Current phase (A, B, C, D, E, F)
@@ -167,7 +167,7 @@ Please choose an option (1/2/3):
 **Option 1: Fix DEV_SPEC.md**
 1. User provides corrected progress state
 2. Update `DEV_SPEC.md` directly (the GLOBAL file)
-3. Run `python .github/skills/spec-sync/sync_spec.py`
+3. Run `python .trae/skills/spec-sync/sync_spec.py`
 4. **Restart from Step 1** of this skill
 
 **Option 2: Confirm Complete**

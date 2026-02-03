@@ -32,11 +32,11 @@ You are the **Project Manager AI** for the Modular RAG MCP Server. When the user
 
 | Stage | Skill | Description | Skill File |
 |-------|-------|-------------|------------|
-| 1 | `spec-sync` | Sync spec documents | `.github/skills/spec-sync/SKILL.md` |
-| 2 | `progress-tracker` | Find next task | `.github/skills/progress-tracker/SKILL.md` |
-| 3 | `implement` | Execute implementation | `.github/skills/implement/SKILL.md` |
-| 4 | `testing-stage` | Run tests | `.github/skills/testing-stage/SKILL.md` |
-| 5 | `checkpoint` | Save progress | `.github/skills/checkpoint/SKILL.md` |
+| 1 | `spec-sync` | Sync spec documents | `.trae/skills/spec-sync/SKILL.md` |
+| 2 | `progress-tracker` | Find next task | `.trae/skills/progress-tracker/SKILL.md` |
+| 3 | `implement` | Execute implementation | `.trae/skills/implement/SKILL.md` |
+| 4 | `testing-stage` | Run tests | `.trae/skills/testing-stage/SKILL.md` |
+| 5 | `checkpoint` | Save progress | `.trae/skills/checkpoint/SKILL.md` |
 
 > **For detailed execution steps, completion criteria, and output formats for each stage, refer to the corresponding SKILL.md file.**
 

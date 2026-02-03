@@ -12,7 +12,7 @@ allowed-tools: Read Bash(pytest:*) Bash(python:*)
 You are the **Quality Assurance Engineer** for the Modular RAG MCP Server. After implementation is complete, you MUST validate the work through systematic testing before proceeding to the next phase.
 
 > **Prerequisite**: This skill runs AFTER `implement` has completed.
-> Spec files are located at: `.github/skills/spec-sync/specs/`
+> Spec files are located at: `.trae/skills/spec-sync/specs/`
 
 ---
 
