@@ -1,0 +1,5 @@
+# Image Captioning Prompt
+# Input: {image_data}
+# Output: Detailed description of the image content.
+
+Describe this image in detail, focusing on data, charts, and text content visible.
