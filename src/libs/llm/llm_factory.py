@@ -3,6 +3,7 @@ from src.libs.llm.base_llm import BaseLLM
 from src.libs.llm.openai_llm import OpenAILLM
 from src.libs.llm.azure_llm import AzureOpenAILLM
 from src.libs.llm.deepseek_llm import DeepSeekLLM
+from src.libs.llm.ollama_llm import OllamaLLM
 
 class LLMFactory:
     """
@@ -55,6 +56,19 @@ class LLMFactory:
                 
             return DeepSeekLLM(
                 api_key=settings.llm.api_key,
+                model=settings.llm.model,
+                **kwargs
+            )
+
+        elif provider == "ollama":
+            # base_url is optional (defaults to localhost), api_key is optional
+            kwargs = {}
+            if settings.llm.base_url:
+                kwargs["base_url"] = settings.llm.base_url
+            if settings.llm.api_key:
+                kwargs["api_key"] = settings.llm.api_key
+                
+            return OllamaLLM(
                 model=settings.llm.model,
                 **kwargs
             )
