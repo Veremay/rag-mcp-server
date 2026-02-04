@@ -1,5 +1,11 @@
-# Rerank Prompt
-# Input: {query}, {candidates}
-# Output: Ranked list of candidate IDs.
+You are a search relevance expert.
+Query: {query}
 
-Rank the following candidates based on their relevance to the query.
+Candidates:
+{candidates}
+
+Task:
+Rank the candidates above based on their relevance to the query.
+Return the result as a strictly valid JSON list of integers representing the indices of the candidates in order of relevance (most relevant first).
+Do not include any explanation or other text.
+Example Output: [1, 0, 2]
