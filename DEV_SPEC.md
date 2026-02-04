@@ -1668,7 +1668,7 @@ observability:
 | 任务编号 | 任务名称 | 状态 | 完成日期 | 备注 |
 |---------|---------|------|---------|------|
 | C1 | 定义核心数据模型（Document/Chunk/Record） | [x] | - | |
-| C2 | 文件完整性检查（SHA256） | [ ] | - | |
+| C2 | 文件完整性检查（SHA256） | [x] | 2026-02-04 | |
 | C3 | Loader 抽象基类与 PDF Loader | [ ] | - | |
 | C4 | Splitter 集成（调用 Libs） | [ ] | - | |
 | C5 | Transform 基类 + ChunkRefiner | [ ] | - | |
@@ -1733,12 +1733,12 @@ observability:
 |------|---------|--------|------|
 | 阶段 A | 3 | 3 | 100% |
 | 阶段 B | 14 | 14 | 100% |
-| 阶段 C | 15 | 0 | 0% |
+| 阶段 C | 15 | 2 | 13% |
 | 阶段 D | 7 | 0 | 0% |
 | 阶段 E | 6 | 0 | 0% |
 | 阶段 F | 5 | 0 | 0% |
 | 阶段 G | 4 | 0 | 0% |
-| **总计** | **54** | **17** | **31%** |
+| **总计** | **54** | **19** | **35%** |
 
 
 ---
@@ -1918,7 +1918,7 @@ observability:
   - 输出向量维度稳定（配置化或固定假维度），满足 ingestion/retrieval 的接口契约。
 - **测试方法**：`pytest -q tests/unit/test_local_embedding.py`。
 
-### B7.5：Recursive Splitter 默认实现
+### B7.5：Recursive Splitter 默认实现 ✅
 - **目标**：补齐 `recursive_splitter.py`，封装 LangChain 的切分逻辑，作为默认切分器。
 - **修改文件**：
   - `src/libs/splitter/recursive_splitter.py`
@@ -1928,7 +1928,7 @@ observability:
   - `split_text` 能正确处理 Markdown 结构（标题/代码块不被打断）。
 - **测试方法**：`pytest -q tests/unit/test_recursive_splitter_lib.py`。
 
-### B7.6：ChromaStore（VectorStore 默认后端）
+### B7.6：ChromaStore（VectorStore 默认后端）✅
 - **目标**：补齐 `chroma_store.py`，支持最小 `upsert(records)` 与 `query(vector, top_k, filters)`，并支持本地持久化目录（例如 `data/db/chroma/`）。
 - **修改文件**：
   - `src/libs/vector_store/chroma_store.py`
@@ -1938,7 +1938,7 @@ observability:
   - 在可用环境下完成一次最小 roundtrip：upsert→query 返回 deterministic 结果。
 - **测试方法**：`pytest -q tests/integration/test_chroma_store_roundtrip.py`（可选）。
 
-### B7.7：LLM Reranker（读取 rerank prompt）
+### B7.7：LLM Reranker（读取 rerank prompt）✅
 - **目标**：补齐 `llm_reranker.py`，读取 `config/prompts/rerank.txt` 构造 prompt（测试中可注入替代文本），并可在失败时返回可回退信号。
 - **修改文件**：
   - `src/libs/reranker/llm_reranker.py`
@@ -1948,7 +1948,7 @@ observability:
   - 输出严格结构化（例如 ranked ids），不满足 schema 时抛出可读错误。
 - **测试方法**：`pytest -q tests/unit/test_llm_reranker.py`。
 
-### B7.8：Cross-Encoder Reranker（本地/托管模型，占位可跑）
+### B7.8：Cross-Encoder Reranker（本地/托管模型，占位可跑）✅
 - **目标**：补齐 `cross_encoder_reranker.py`，支持对 Top-M candidates 打分排序；测试中用 mock scorer 保证 deterministic。
 - **修改文件**：
   - `src/libs/reranker/cross_encoder_reranker.py`
@@ -1964,7 +1964,7 @@ observability:
 
 > 注：本阶段严格按 5.4.1 的离线数据流落地，并优先实现“增量跳过（SHA256）”。
 
-### C1：定义核心数据模型（Document/Chunk/Record）
+### C1：定义核心数据模型（Document/Chunk/Record）✅
 - **状态**：[x]
 - **目标**：定义 ingestion 与 retrieval 共用的数据结构（最少字段：text、metadata、ids）。
 - **修改文件**：
@@ -1976,7 +1976,7 @@ observability:
 - **验收标准**：模型可序列化（dict/json）并在测试中断言字段稳定。
 - **测试方法**：`pytest -q tests/unit/test_models.py`。
 
-### C2：文件完整性检查（SHA256）
+### C2：文件完整性检查（SHA256） ✅
 - **目标**：在Libs中实现 `file_integrity.py`：计算文件 hash，并提供“是否跳过”的判定接口（先用本地 cache 文件/SQLite 任一实现，后续可替换）。
 - **修改文件**：
   - `src/libs/loader/file_integrity.py`
