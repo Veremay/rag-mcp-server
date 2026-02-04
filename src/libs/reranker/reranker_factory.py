@@ -3,6 +3,7 @@ from src.core.settings import Settings
 from src.libs.reranker.base_reranker import BaseReranker
 from src.libs.llm.llm_factory import LLMFactory
 from src.libs.reranker.llm_reranker import LLMReranker
+from src.libs.reranker.cross_encoder_reranker import CrossEncoderReranker
 
 class NoneReranker(BaseReranker):
     """
@@ -47,7 +48,8 @@ class RerankerFactory:
             llm = LLMFactory.create(settings)
             return LLMReranker(llm)
         
-        # Future implementations:
-        # if backend == "cross-encoder": ...
+        if backend == "cross-encoder" or backend == "cross_encoder":
+            model_name = settings.rerank.model
+            return CrossEncoderReranker(model_name=model_name)
         
         raise ValueError(f"Unsupported reranker backend: {backend}")

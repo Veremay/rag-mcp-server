@@ -1661,7 +1661,7 @@ observability:
 | B7.5 | Recursive Splitter 默认实现 | [x] | 2026-02-04 | |
 | B7.6 | ChromaStore 默认实现 | [x] | 2026-02-04 | |
 | B7.7 | LLM Reranker 实现 | [x] | 2026-02-04 | |
-| B7.8 | Cross-Encoder Reranker 实现 | [ ] | - | |
+| B7.8 | Cross-Encoder Reranker 实现 | [x] | 2026-02-04 | |
 
 #### 阶段 C：Ingestion Pipeline MVP
 

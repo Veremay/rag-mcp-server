@@ -4,6 +4,7 @@ from src.core.settings import Settings, RerankSettings
 from src.libs.reranker.base_reranker import BaseReranker
 from src.libs.reranker.reranker_factory import RerankerFactory, NoneReranker
 from src.libs.reranker.llm_reranker import LLMReranker
+from src.libs.reranker.cross_encoder_reranker import CrossEncoderReranker
 
 @pytest.fixture
 def mock_settings():
@@ -58,3 +59,14 @@ def test_factory_create_llm_reranker(mock_llm_factory, mock_settings):
     assert isinstance(reranker, LLMReranker)
     assert reranker.llm == mock_llm
     mock_llm_factory.create.assert_called_once_with(mock_settings)
+
+@patch("src.libs.reranker.cross_encoder_reranker.CrossEncoderReranker._load_model")
+def test_factory_create_cross_encoder_reranker(mock_load_model, mock_settings):
+    """Test factory creates CrossEncoderReranker when backend is 'cross-encoder'."""
+    mock_settings.rerank.backend = "cross-encoder"
+    mock_settings.rerank.model = "test/model"
+    
+    reranker = RerankerFactory.create(mock_settings)
+    
+    assert isinstance(reranker, CrossEncoderReranker)
+    assert reranker.model_name == "test/model"
