@@ -1,16 +1,25 @@
-from typing import Dict, Type
+from typing import Dict, Type, Optional
+
 from src.core.settings import Settings
 from src.libs.splitter.base_splitter import BaseSplitter
-from src.libs.splitter.recursive_splitter import RecursiveSplitter
+
+def _try_load_recursive_splitter() -> Optional[Type[BaseSplitter]]:
+    try:
+        from src.libs.splitter.recursive_splitter import RecursiveSplitter
+    except ModuleNotFoundError:
+        return None
+    return RecursiveSplitter
 
 class SplitterFactory:
     """
     Factory for creating Splitter instances based on configuration.
     Supports dynamic registration of providers.
     """
-    _registry: Dict[str, Type[BaseSplitter]] = {
-        "recursive": RecursiveSplitter
-    }
+    _registry: Dict[str, Type[BaseSplitter]] = {}
+
+    _recursive_splitter = _try_load_recursive_splitter()
+    if _recursive_splitter is not None:
+        _registry["recursive"] = _recursive_splitter
 
     @classmethod
     def register(cls, provider: str, splitter_cls: Type[BaseSplitter]) -> None:
@@ -37,8 +46,6 @@ class SplitterFactory:
         Raises:
             ValueError: If the provider is not registered.
         """
-        # Ensure ingestion settings are accessible
-        # In a real scenario, validation logic ensures 'ingestion' and 'splitter' exist.
         provider = settings.ingestion.splitter.provider.lower()
         
         if provider not in cls._registry:

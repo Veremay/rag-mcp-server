@@ -1,5 +1,10 @@
 import pytest
+import importlib.util
 from unittest.mock import MagicMock
+
+if importlib.util.find_spec("langchain_text_splitters") is None:
+    pytest.skip("langchain_text_splitters is not installed", allow_module_level=True)
+
 from src.libs.splitter.recursive_splitter import RecursiveSplitter
 from src.libs.splitter.splitter_factory import SplitterFactory
 from src.core.settings import Settings, IngestionSettings, SplitterSettings
