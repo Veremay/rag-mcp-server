@@ -1667,7 +1667,7 @@ observability:
 
 | 任务编号 | 任务名称 | 状态 | 完成日期 | 备注 |
 |---------|---------|------|---------|------|
-| C1 | 定义核心数据模型（Document/Chunk/Record） | [ ] | - | |
+| C1 | 定义核心数据模型（Document/Chunk/Record） | [x] | - | |
 | C2 | 文件完整性检查（SHA256） | [ ] | - | |
 | C3 | Loader 抽象基类与 PDF Loader | [ ] | - | |
 | C4 | Splitter 集成（调用 Libs） | [ ] | - | |
@@ -1965,6 +1965,7 @@ observability:
 > 注：本阶段严格按 5.4.1 的离线数据流落地，并优先实现“增量跳过（SHA256）”。
 
 ### C1：定义核心数据模型（Document/Chunk/Record）
+- **状态**：[x]
 - **目标**：定义 ingestion 与 retrieval 共用的数据结构（最少字段：text、metadata、ids）。
 - **修改文件**：
   - `src/ingestion/__init__.py`（若需新增 `src/ingestion/models.py`，需同步在 5.2 目录结构中补充）
