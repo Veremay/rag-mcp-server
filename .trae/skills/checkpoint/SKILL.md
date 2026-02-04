@@ -7,137 +7,42 @@ metadata:
 allowed-tools: Bash(python:*) Bash(git:*) Read Write
 ---
 
-# Progress Persistence (Anti-Loop Safe)
+# Progress Persistence (Interactive Flow)
 
-## Anti-Loop Guardrails
+## 🛑 Anti-Loop Guardrails (CRITICAL)
 
-The host environment may auto-trigger skills based on assistant output. To prevent re-entry loops:
+To prevent recursion loops, you **MUST** follow these rules:
 
-1. **CRITICAL**: Once this skill is loaded, **YOU** (the model) must execute the workflow steps using standard tools (`Read`, `Write`, `SearchReplace`, `RunCommand`).
-2. **DO NOT** call the `checkpoint` tool again during this workflow.
-3. Never output any exact trigger phrases listed in this file's `metadata.triggers` OR phrases like "TASK COMPLETED" anywhere in assistant messages.
-4. After emitting the Step 1.5 confirmation prompt, STOP. Do not proceed to Step 2/3 until the user replies.
-5. Do not restate the confirmation prompt more than once per user turn.
-
-This skill handles **task completion summarization** and **progress tracking synchronization**. It ensures that completed work is properly documented and the project schedule in `DEV_SPEC.md` stays up-to-date.
-
-> **Single Responsibility**: Summarize → Persist → Prepare Next
+1.  **INTERACTIVE MODE ONLY**: This skill requires multiple user turns. **NEVER** attempt to complete the entire flow in a single response.
+2.  **MANDATORY STOP**: After outputting a verification summary or a confirmation prompt, you **MUST TERMINATE YOUR TURN IMMEDIATELY**. Do not output any further text or call tools until the user replies.
+3.  **NO SIMULATION**: Never hallucinate or simulate a user's "confirm" response. You must wait for the actual user to type "confirm" or "yes".
+4.  **NO RECURSION**: Do not call the `checkpoint` skill tool again from within this flow. Use standard tools (`Read`, `Write`, `SearchReplace`, `RunCommand`) to perform actions.
+5.  **SAFE OUTPUT**: Do not use phrases like "TASK COMPLETED" (all caps) in your output, as this may trigger system automations. Use "Task Processed" instead.
 
 ---
 
-## When to Use This Skill
+## Workflow Overview
 
-- When a task implementation and testing is **completed**
-- When you need to **manually update progress** in DEV_SPEC.md
-- When you want to **generate a commit message** for completed work
-- As the **final stage** of the `dev-workflow` pipeline
-
----
-
-## Workflow
+This process is split into **3 distinct interaction turns**. You must stop and yield to the user after each step.
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  Step 1           Step 1.5                 Step 2              Step 3      │
-│  ────────         ────────                 ────────            ────────     │
-│  Summarize   →   User Confirm (WHAT)  →   Persist Progress →  Commit Prep │
-│  (Summarize)      (Verify work done)       (Update DEV_SPEC)   (WHETHER)   │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-                    ┌──────────────────┐
-                    │   Tests Passed   │
-                    └────────┬─────────┘
-                             ▼
-                  ┌──────────────────────┐
-                  │  Step 1: Summarize   │
-                  │  Generate summary    │
-                  └────────┬─────────────┘
-                           ▼
-                  ┌──────────────────────┐
-                  │ Step 1.5: User       │
-                  │ Confirmation         │
-                  │ Wait for user OK     │
-                  └────────┬─────────────┘
-                           │
-                     User OK? ──No──→ Revise summary → Back to Step1
-                           │
-                       Yes ▼
-                  ┌──────────────────────┐
-                  │ Step 2: Persist      │
-                  │ Progress             │
-                  │ Update DEV_SPEC.md   │
-                  └────────┬─────────────┘
-                           ▼
-                  ┌──────────────────────┐
-                  │ Step 3: Commit Prep  │
-                  │ Generate commit msg  │
-                  │ Wait for user OK     │
-                  └────────┬─────────────┘
-                           │
-                     User OK? ──No──→ Skip commit → Flow end
-                           │
-                       Yes ▼
-                  ┌──────────────────────┐
-                  │  Execute git commit  │
-                  └────────┬─────────────┘
-                           ▼
-                  ┌──────────────────────┐
-                  │        Done         │
-                  └──────────────────────┘
+Turn 1: Assistant generates SUMMARY → User VERIFIES
+Turn 2: Assistant UPDATES SPEC & PROPOSES COMMIT → User APPROVES
+Turn 3: Assistant EXECUTES COMMIT → Done
 ```
 
 ---
 
-## Step 1: Work Summary
+## Turn 1: Work Summary & Verification
 
-**Goal**: Generate a clear, structured summary of completed work.
+**Goal**: Generate a summary of work done and ask the user to verify it.
 
-### 1.1 Collect Information
+### Actions
+1.  **Gather Context**: Check recent file changes, test results, and the active task in `DEV_SPEC.md`.
+2.  **Generate Report**: Output the summary using the format below.
+3.  **STOP**: End your turn immediately.
 
-Gather the following from the current session:
-- **Task ID**: e.g., `A3`, `B1`, `C5`
-- **Task Name**: e.g., "配置加载与校验"
-- **Files Created/Modified**: List all file changes
-- **Test Results**: Pass/fail status and coverage (if available)
-- **Implementation Iterations**: How many test-fix cycles occurred
-
-### 1.2 Generate Summary Report
-
-**Output Format**:
-```
-────────────────────────────────────────────────────
- TASK PROCESSED: [Task ID] [Task Name]
-────────────────────────────────────────────────────
-
- Files Changed:
-  Created:
-    - src/xxx/yyy.py
-    - tests/unit/test_yyy.py
-  Modified:
-    - src/xxx/zzz.py
-
- Test Results:
-    - tests/unit/test_yyy.py: 5/5 passed 
-    - tests/unit/test_zzz.py: 3/3 passed 
-    - Coverage: 85% (if available)
-
- Iterations: [N] (1 = first try success)
-
- Spec Reference: DEV_SPEC.md Section [X.Y]
-────────────────────────────────────────────────────
-```
-
----
-
-## Step 1.5: User Confirmation (Verify WHAT Was Done)
-
-**Goal**: Present summary to user for verification before persisting progress.
-
-**This confirms WHAT work was completed** - validating the summary accuracy, not whether to save it.
-
-### 1.5.1 Confirmation Prompt
-
-**Output Format**:
+### Output Template (Turn 1)
 ```
 ════════════════════════════════════════════════════
  Please Verify Completion Summary / 请验证工作总结
@@ -148,14 +53,13 @@ Gather the following from the current session:
 
  Files Changed:
   Created:
-    - src/xxx/yyy.py
-    - tests/unit/test_yyy.py
+    - src/...
   Modified:
-    - src/xxx/zzz.py
+    - src/...
 
  Test Results:
-    - tests/unit/test_yyy.py: 5/5 passed 
-    - tests/unit/test_zzz.py: 3/3 passed 
+    - [Test File]: [Pass/Fail]
+    - Coverage: [XX%]
 
  Iterations: [N]
 
@@ -163,226 +67,99 @@ Gather the following from the current session:
  Is this summary accurate?
  以上总结是否准确？
 
-   Please reply: "confirm" / "确认" to write progress back to DEV_SPEC.md
-                "revise" / "修改" to regenerate summary
-                
- Note: This only verifies the summary. DEV_SPEC.md will be updated
- after confirmation. Git commit decision comes later.
+   Please reply: "confirm" / "确认" to proceed with progress update.
+                "revise" / "修改" to regenerate summary.
 ════════════════════════════════════════════════════
 ```
 
-### 1.5.2 Handle User Response
-
-| User Response | Action |
-|---------------|--------|
-| "confirm" / "yes" / "确认" / "是" | Proceed to Step 2 |
-| "revise" / "no" / "修改" / "否" | Ask user what needs to be corrected, then regenerate summary |
-
-**Important**: Do NOT proceed to Step 2 until user explicitly confirms.
+> **ACTION**: STOP HERE. Do not proceed to Turn 2.
 
 ---
 
-## Step 2: Persist Progress
+## Turn 2: Persist Progress & Commit Prep
 
-**Goal**: Update `DEV_SPEC.md` to mark the task as completed.
+**Trigger**: User says "confirm", "yes", "确认", or "是".
 
-> **Auto-Execute**: This step runs automatically after Step 1.5 user confirmation. No additional user input required.
+**Goal**: Update `DEV_SPEC.md` and generate the git commit message.
 
-**Action**: Use `SearchReplace` tool (NOT `checkpoint` tool) to update the file.
+### Actions
+1.  **Update DEV_SPEC.md**: Use `SearchReplace` to mark the task as completed (e.g., `[ ]` -> `[x]`).
+    -   *Rule*: Update the GLOBAL `DEV_SPEC.md` file.
+    -   *Rule*: Preserve the existing marker style (checkbox, emoji, etc.).
+2.  **Generate Commit Message**: Create a conventional commit message based on the work.
+3.  **Ask for Approval**: Present the message and ask if you should run `git commit`.
+4.  **STOP**: End your turn immediately.
 
-### 2.1 Locate Task in DEV_SPEC.md
-
-1. Read `DEV_SPEC.md` (the **GLOBAL** file, NOT chapter files)
-2. Find the task by its identifier pattern:
-   - Look for `### [Task ID]：[Task Name]` (e.g., `### A3：配置加载与校验`)
-   - Or look for checkbox pattern: `- [ ] [Task ID] [Task Name]`
-
-### 2.2 Update Progress Marker
-
-**Supported Marker Styles**:
-
-| Before | After | Style |
-|--------|-------|-------|
-| `[ ]` | `[x]` | Checkbox |
-| `` | `` | Emoji |
-| `### A3：任务名` | `### A3：任务名 ` | Title suffix |
-| `(进行中)` | `(已完成)` | Chinese status |
-| `(In Progress)` | `(Completed)` | English status |
-
-**Update Logic**:
-```python
-# Pseudo-code for update logic
-if task_line contains "[ ]":
-    replace "[ ]" with "[x]"
-elif task_line contains "":
-    replace "" with ""
-elif task_line contains "(进行中)" or "(In Progress)":
-    replace with "(已完成)" or "(Completed)"
-else:
-    append " " to task title
-```
-
-### 2.3 Step 2 Output Format
-
-**Output after updating DEV_SPEC.md**:
+### Output Template (Turn 2)
 ```
 ────────────────────────────────────
-DEV_SPEC.md Progress Updated
+ DEV_SPEC.md Updated
 ────────────────────────────────────
-Task: [Task ID] [Task Name]
-Status: [ ] -> [x]
+ Task: [Task ID] [Task Name]
+ Status: Marked as Completed [x]
 ────────────────────────────────────
+
+════════════════════════════════════════════════════
+ PROPOSED COMMIT / 建议提交
+════════════════════════════════════════════════════
+
+ command: git commit -m "..."
+
+ Message:
+ [Subject]
+ feat(scope): [Phase X.Y] summary
+
+ [Description]
+ ...
+
+════════════════════════════════════════════════════
+ Do you want to execute this commit?
+ 是否执行提交？
+
+   Reply: "yes" / "commit" / "是" to execute.
+          "no" / "skip" / "否" to skip commit.
+════════════════════════════════════════════════════
 ```
+
+> **ACTION**: STOP HERE. Do not proceed to Turn 3.
 
 ---
 
-## Step 3: Commit Preparation
+## Turn 3: Execute Commit
 
-**Goal**: Generate structured commit message and ask user whether to commit.
+**Trigger**: User says "yes", "commit", "确认", or "是".
 
-**Action**: Use `RunCommand` tool (NOT `checkpoint` tool) to execute git commands.
+**Goal**: Run the git commands to save changes.
 
-### 3.1 Commit Message Template
+### Actions
+1.  **Execute Commands**:
+    ```bash
+    git add .
+    git commit -m "subject" -m "description"
+    ```
+2.  **Report Success**: Confirm the commit hash and branch.
 
-**Subject Format**:
-```
-<type>(<scope>): [Phase X.Y] <brief description>
-```
-
-**Template Definition**:
-| Field | Description | Example |
-|-------|-------------|---------|
-| `<type>` | Commit type (see table below) | `feat`, `fix`, `test` |
-| `<scope>` | Module/component name | `config`, `retriever`, `pipeline` |
-| `[Phase X.Y]` | DEV_SPEC phase number | `[Phase 2.3]`, `[Phase A3]` |
-| `<brief description>` | What was done (< 50 chars) | `implement config loader` |
-
-**Commit Type Guidelines**:
-| Change Type | Commit Prefix |
-|-------------|---------------|
-| New feature | `feat:` |
-| Bug fix | `fix:` |
-| Refactoring | `refactor:` |
-| Tests only | `test:` |
-| Documentation | `docs:` |
-| Configuration | `chore:` |
-
-### 3.2 Generate Commit Message
-
-**Output Format**:
-```
-════════════════════════════════════════════════════
- COMMIT MESSAGE / 提交信息
-════════════════════════════════════════════════════
-
-【Subject】
-feat(<module>): [Phase X.Y] implement <feature name>
-
-【Description】
-Completed DEV_SPEC.md Phase X.Y: <Task Name>
-
-Changes:
-- Added <component 1> implementation
-- Added <component 2> implementation
-- Added unit tests test_xxx.py
-
-Testing:
-- Command: pytest tests/unit/test_xxx.py -v
-- Results: X/X passed 
-- Coverage: XX% (if available)
-
-Refs: DEV_SPEC.md Section X.Y
-Task: [Task ID] <Task Name>
-
-════════════════════════════════════════════════════
-```
-
-### 3.3 User Commit Confirmation (Decide WHETHER to Commit)
-
-**This confirms WHETHER to commit** - deciding if changes should be committed to git now or manually later.
-
-**Prompt User**:
-```
-────────────────────────────────────
- Do you want me to commit these changes?
- 是否需要帮您执行 git commit？
-────────────────────────────────────
-
-Please reply / 请回复:
-  "yes" / "commit" / "是" → Execute git add + git commit
-  "no" / "skip" / "否"   → End flow, you can commit manually later
-────────────────────────────────────
-```
-
-### 3.4 Execute Commit (If Confirmed)
-
-**If user confirms**:
-```bash
-# Stage all changed files
-git add <list of changed files>
-
-# Commit with generated message
-git commit -m "<subject>" -m "<description>"
-```
-
-**Success Output**:
+### Output Template (Turn 3)
 ```
 ────────────────────────────────────
  COMMIT SUCCESSFUL
 ────────────────────────────────────
-Commit: <short hash>
-Branch: <current branch>
+ Commit: [Short Hash]
+ Branch: [Branch Name]
 
-Progress saved, task [Task ID] processed!
-进度已保存，任务 [Task ID] 处理完毕！
-────────────────────────────────────
-```
-
-### 3.5 Skip Commit (If Declined)
-
-**If user declines**:
-```
-────────────────────────────────────
- WORKFLOW COMPLETED (No Commit)
-────────────────────────────────────
- DEV_SPEC.md updated
- Git commit skipped
-
-You can manually commit later with:
-  git add .
-  git commit -m "<subject>" -m "<description>"
-
-Task [Task ID] flow processed!
-任务 [Task ID] 流程处理完毕！
+ Task [Task ID] workflow completed!
+ 任务 [Task ID] 流程已完成！
 ────────────────────────────────────
 ```
 
 ---
 
-## Quick Commands
+## Quick Reference
 
-| User Intent | Behavior |
-|------------|----------|
-| Run full progress persistence flow | Full workflow (Step 1-3) with confirmations |
-| Only write progress back to DEV_SPEC.md | Step 1.5-2 only (confirm + persist) |
-| Only generate commit message | Step 3 only (generate commit message) |
-| Generate commit message and commit for user | Step 3 + execute git commit |
+| User Intent | Correct Action |
+| :--- | :--- |
+| **"Check progress"** | Run Turn 1 (Summary) |
+| **"Confirm summary"** | Run Turn 2 (Update Spec + Prep Commit) |
+| **"Do commit"** | Run Turn 3 (Execute Commit) |
 
----
-
-## Important Rules
-
-1. **Always Update GLOBAL DEV_SPEC.md**: This is the single source of truth for progress tracking.
-
-2. **Preserve Existing Format**: Match the marker style already used in the document (checkbox vs emoji vs text).
-
-3. **Atomic Updates**: Update ONE task at a time. Don't batch-update multiple tasks.
-
-4. **Two User Confirmations Required**: 
-   - Step 1.5: User must confirm work summary before persisting
-   - Step 3.3: User must confirm before git commit
-   - **NEVER skip these confirmations!**
-
-5. **Traceability**: Every progress persistence run must reference the specific spec section that defined the task.
-
----
+**Remember**: The most common cause of loops is trying to do Turn 1 and Turn 2 in the same response. **ALWAYS STOP** after asking a question.
