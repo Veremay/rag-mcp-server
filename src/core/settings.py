@@ -62,8 +62,21 @@ class SplitterSettings:
     chunk_overlap: int = 200
 
 @dataclass
+class ChunkRefinerSettings:
+    enabled: bool = True
+    enable_llm: bool = False
+    llm_provider: Optional[str] = None  # If None, use default LLM
+    prompt_path: str = "config/prompts/chunk_refinement.txt"
+    fallback_on_error: bool = True
+
+@dataclass
+class TransformSettings:
+    chunk_refiner: ChunkRefinerSettings
+
+@dataclass
 class IngestionSettings:
     splitter: SplitterSettings
+    transform: TransformSettings
 
 @dataclass
 class Settings:
@@ -91,11 +104,22 @@ def load_settings(config_path: str = "config/settings.yaml") -> Settings:
 
     validate_settings(config_data)
     
+    ingestion_data = config_data.get("ingestion", {})
+    splitter_data = ingestion_data.get("splitter", {})
+    transform_data = ingestion_data.get("transform", {})
+    chunk_refiner_data = transform_data.get("chunk_refiner", {})
+
     return Settings(
         llm=LLMSettings(**config_data.get("llm", {})),
         embedding=EmbeddingSettings(**config_data.get("embedding", {})),
         vision_llm=VisionLLMSettings(**config_data.get("vision_llm", {})),
         vector_store=VectorStoreSettings(**config_data.get("vector_store", {})),
+        ingestion=IngestionSettings(
+            splitter=SplitterSettings(**splitter_data),
+            transform=TransformSettings(
+                chunk_refiner=ChunkRefinerSettings(**chunk_refiner_data)
+            )
+        ),
         retrieval=RetrievalSettings(**config_data.get("retrieval", {})),
         rerank=RerankSettings(**config_data.get("rerank", {})),
         evaluation=EvaluationSettings(**config_data.get("evaluation", {})),

@@ -1,5 +1,11 @@
-# Chunk Refinement Prompt
-# Input: {chunk_text}, {document_metadata}
-# Output: Refined chunk with context.
+You are a helpful assistant that refines text chunks for a RAG system.
+Your goal is to improve the quality of the text for retrieval and embedding purposes.
 
-Refine the following text chunk to make it self-contained, adding context from the document metadata if necessary.
+Input text:
+{text}
+
+Instructions:
+1. Fix broken sentences or formatting issues caused by PDF parsing (e.g., unexpected line breaks).
+2. Remove noise such as page numbers, headers, or footers if they interrupt the flow.
+3. Maintain the original meaning and information density. Do not summarize.
+4. Return ONLY the refined text. Do not add explanations or conversational filler.
