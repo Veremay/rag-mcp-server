@@ -2,6 +2,7 @@ from typing import Dict, Type, Any
 from src.core.settings import Settings
 from src.libs.embedding.base_embedding import BaseEmbedding
 from src.libs.embedding.openai_embedding import OpenAIEmbedding
+from src.libs.embedding.local_embedding import LocalEmbedding
 
 class EmbeddingFactory:
     """
@@ -36,6 +37,11 @@ class EmbeddingFactory:
                 api_key=settings.embedding.api_key,
                 model=settings.embedding.model,
                 **kwargs
+            )
+            
+        elif provider == "local":
+            return LocalEmbedding(
+                model=settings.embedding.model
             )
             
         else:
