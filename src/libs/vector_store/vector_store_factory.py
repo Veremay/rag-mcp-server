@@ -21,8 +21,8 @@ class VectorStoreFactory:
         backend = settings.vector_store.backend.lower()
 
         if backend == "chroma":
-            # TODO: Implement ChromaStore in B7.6
-            raise NotImplementedError("ChromaStore implementation is pending (scheduled for B7.6)")
+            from src.libs.vector_store.chroma_store import ChromaStore
+            return ChromaStore(settings)
         
         # Extension point for other backends (e.g., qdrant, pinecone)
         
