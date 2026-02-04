@@ -30,12 +30,21 @@ def test_factory_unsupported_backend(mock_settings):
     with pytest.raises(ValueError, match="Unsupported vector store backend"):
         VectorStoreFactory.create(mock_settings)
 
-def test_factory_chroma_pending(mock_settings):
-    """Test that factory raises NotImplementedError for chroma (pending B7.6)."""
+from unittest.mock import MagicMock, patch
+
+# ... (existing imports)
+
+def test_factory_creates_chroma(mock_settings):
+    """Test that factory creates ChromaStore when backend is chroma."""
     mock_settings.vector_store.backend = "chroma"
+    mock_settings.vector_store.persist_path = "/tmp/test_chroma"
+    mock_settings.vector_store.collection_name = "test"
     
-    with pytest.raises(NotImplementedError, match="ChromaStore implementation is pending"):
-        VectorStoreFactory.create(mock_settings)
+    with patch("src.libs.vector_store.chroma_store.ChromaStore") as MockChromaStore:
+        store = VectorStoreFactory.create(mock_settings)
+        
+        MockChromaStore.assert_called_once_with(mock_settings)
+        assert store == MockChromaStore.return_value
 
 def test_vector_record_structure():
     """Test VectorRecord dataclass structure."""
