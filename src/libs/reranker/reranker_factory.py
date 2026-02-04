@@ -1,6 +1,8 @@
 from typing import List, Any, Optional
 from src.core.settings import Settings
 from src.libs.reranker.base_reranker import BaseReranker
+from src.libs.llm.llm_factory import LLMFactory
+from src.libs.reranker.llm_reranker import LLMReranker
 
 class NoneReranker(BaseReranker):
     """
@@ -41,8 +43,11 @@ class RerankerFactory:
         if backend == "none":
             return NoneReranker()
         
+        if backend == "llm":
+            llm = LLMFactory.create(settings)
+            return LLMReranker(llm)
+        
         # Future implementations:
         # if backend == "cross-encoder": ...
-        # if backend == "llm": ...
         
         raise ValueError(f"Unsupported reranker backend: {backend}")

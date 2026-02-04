@@ -1,8 +1,9 @@
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from src.core.settings import Settings, RerankSettings
 from src.libs.reranker.base_reranker import BaseReranker
 from src.libs.reranker.reranker_factory import RerankerFactory, NoneReranker
+from src.libs.reranker.llm_reranker import LLMReranker
 
 @pytest.fixture
 def mock_settings():
@@ -43,3 +44,17 @@ def test_factory_case_insensitive(mock_settings):
     mock_settings.rerank.backend = "NONE"
     reranker = RerankerFactory.create(mock_settings)
     assert isinstance(reranker, NoneReranker)
+
+@patch("src.libs.reranker.reranker_factory.LLMFactory")
+def test_factory_create_llm_reranker(mock_llm_factory, mock_settings):
+    """Test factory creates LLMReranker when backend is 'llm'."""
+    mock_settings.rerank.backend = "llm"
+    # Mock LLM creation
+    mock_llm = MagicMock()
+    mock_llm_factory.create.return_value = mock_llm
+    
+    reranker = RerankerFactory.create(mock_settings)
+    
+    assert isinstance(reranker, LLMReranker)
+    assert reranker.llm == mock_llm
+    mock_llm_factory.create.assert_called_once_with(mock_settings)
