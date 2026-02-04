@@ -25,10 +25,16 @@ class FakeSplitter(BaseSplitter):
     def split_text(self, text: str, trace: Optional[Any] = None, **kwargs: Any) -> List[str]:
         return [text]
 
+@pytest.fixture(autouse=True)
+def restore_registry():
+    """Save and restore the registry state."""
+    original_registry = SplitterFactory._registry.copy()
+    yield
+    SplitterFactory._registry = original_registry
+
 def test_factory_registration():
-    # Clear registry to avoid side effects (though strictly shouldn't affect if keys differ)
-    SplitterFactory._registry.clear()
-    
+    # We can add to the registry without clearing it
+    # Or if we want to test empty, we can mock it
     SplitterFactory.register("fake", FakeSplitter)
     assert "fake" in SplitterFactory._registry
     assert SplitterFactory._registry["fake"] == FakeSplitter
@@ -44,8 +50,8 @@ def test_factory_create_success():
     assert splitter.settings == settings
 
 def test_factory_unknown_provider():
-    SplitterFactory._registry.clear()
-    settings = MockSettings(provider="unknown_provider")
+    # Don't clear, just use a definitely unknown name
+    settings = MockSettings(provider="unknown_provider_xyz")
     
     with pytest.raises(ValueError, match="Unknown splitter provider"):
         SplitterFactory.create(settings)

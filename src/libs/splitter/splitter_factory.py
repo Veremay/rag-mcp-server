@@ -1,13 +1,16 @@
 from typing import Dict, Type
 from src.core.settings import Settings
 from src.libs.splitter.base_splitter import BaseSplitter
+from src.libs.splitter.recursive_splitter import RecursiveSplitter
 
 class SplitterFactory:
     """
     Factory for creating Splitter instances based on configuration.
     Supports dynamic registration of providers.
     """
-    _registry: Dict[str, Type[BaseSplitter]] = {}
+    _registry: Dict[str, Type[BaseSplitter]] = {
+        "recursive": RecursiveSplitter
+    }
 
     @classmethod
     def register(cls, provider: str, splitter_cls: Type[BaseSplitter]) -> None:
