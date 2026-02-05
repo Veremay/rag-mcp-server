@@ -75,3 +75,54 @@ class LLMFactory:
             
         else:
             raise ValueError(f"Unknown LLM provider: {provider}")
+
+    @staticmethod
+    def create_vision(settings: Settings) -> BaseLLM:
+        """
+        Create a Vision LLM instance based on the provided settings.
+        
+        Args:
+            settings: Application settings containing Vision LLM configuration
+            
+        Returns:
+            An instance of a class implementing BaseLLM
+            
+        Raises:
+            ValueError: If the configured provider is not supported or missing config.
+        """
+        provider = settings.vision_llm.provider.lower()
+        
+        # Note: We reuse the main LLM credentials for now as VisionLLMSettings 
+        # doesn't have its own auth fields.
+        api_key = settings.llm.api_key
+        base_url = settings.llm.base_url
+        azure_endpoint = settings.llm.azure_endpoint
+        
+        if provider == "openai":
+            if not api_key:
+                raise ValueError("OpenAI provider requires api_key")
+            return OpenAILLM(
+                api_key=api_key,
+                model=settings.vision_llm.model,
+                base_url=base_url
+            )
+            
+        elif provider == "azure":
+            if not api_key:
+                raise ValueError("Azure provider requires api_key")
+            if not azure_endpoint:
+                raise ValueError("Azure provider requires azure_endpoint")
+            return AzureOpenAILLM(
+                api_key=api_key,
+                azure_endpoint=azure_endpoint,
+                model=settings.vision_llm.model
+            )
+            
+        elif provider == "ollama":
+            return OllamaLLM(
+                model=settings.vision_llm.model,
+                base_url=base_url  # OllamaLLM handles None base_url
+            )
+            
+        else:
+            raise ValueError(f"Unknown Vision LLM provider: {provider}")

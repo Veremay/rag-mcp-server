@@ -1673,7 +1673,7 @@ observability:
 | C4 | Splitter 集成（调用 Libs） | [x] | 2026-02-04 | |
 | C5 | Transform 基类 + ChunkRefiner | [x] | 2026-02-04 | |
 | C6 | MetadataEnricher | [x] | 2026-02-04 | |
-| C7 | ImageCaptioner | [ ] | - | |
+| C7 | ImageCaptioner | [x] | 2026-02-05 | |
 | C8 | DenseEncoder | [ ] | - | |
 | C9 | SparseEncoder | [ ] | - | |
 | C10 | BatchProcessor | [ ] | - | |
@@ -1733,12 +1733,12 @@ observability:
 |------|---------|--------|------|
 | 阶段 A | 3 | 3 | 100% |
 | 阶段 B | 14 | 14 | 100% |
-| 阶段 C | 15 | 6 | 40% |
+| 阶段 C | 15 | 7 | 47% |
 | 阶段 D | 7 | 0 | 0% |
 | 阶段 E | 6 | 0 | 0% |
 | 阶段 F | 5 | 0 | 0% |
 | 阶段 G | 4 | 0 | 0% |
-| **总计** | **54** | **23** | **43%** |
+| **总计** | **54** | **24** | **44%** |
 
 
 ---
