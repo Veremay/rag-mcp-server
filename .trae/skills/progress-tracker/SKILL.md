@@ -4,7 +4,7 @@ description: Identify next development task from project schedule and validate c
 metadata:
   category: progress-tracking
   triggers: "status, what's next, find task, 检查进度, 下一个任务, 定位任务"
-allowed-tools: Read Bash(python:*)
+allowed-tools: Read Bash(python:*) LS
 ---
 
 #  Progress Tracker & Task Discovery
@@ -258,6 +258,34 @@ Your choice:
 | Confirm / 确认 / Yes | Return task info to caller (dev-workflow Stage 3) |
 | Override / 指定其他 | Ask for task ID, validate it exists, return that task |
 | Cancel / 取消 | Stop the workflow, return to idle state |
+
+---
+
+## 阶段总结提醒（大阶段切换时）
+
+在进入新阶段的第一个子任务之前，增加一次“主动询问是否生成上一阶段总结”的提醒，以便你全面回顾刚完成的大阶段能力。
+
+### 触发条件（满足其一即可）
+
+1. 识别到“下一任务”属于新阶段（例如从 C15 进入 D1）
+2. 且上一阶段在 `DEV_SPEC.md` 的阶段进度中为 `100%`（或阶段任务表全部为 `[x]`）
+
+### 去重规则
+
+若项目根目录存在 `stage_summaries/`，且已存在上一阶段的总结文件（文件名包含 `stage_<上一阶段字母>_`），则不再提醒。
+
+### 提醒模板（必须停止等待回复）
+
+```
+检测到你刚完成了【阶段 <Prev>】，即将进入【阶段 <Next>】。
+是否需要生成【阶段 <Prev>】总结（会写入 stage_summaries/）？
+
+回复：
+  - 需要 / 是 / yes：现在生成
+  - 跳过 / 否 / no：继续进入下一任务
+```
+
+若用户选择生成：调用 `stage-summary` 技能完成落盘后，再继续本技能的确认流程。
 
 ---
 
