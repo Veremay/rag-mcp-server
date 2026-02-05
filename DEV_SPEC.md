@@ -1674,7 +1674,7 @@ observability:
 | C5 | Transform 基类 + ChunkRefiner | [x] | 2026-02-04 | |
 | C6 | MetadataEnricher | [x] | 2026-02-04 | |
 | C7 | ImageCaptioner | [x] | 2026-02-05 | |
-| C8 | DenseEncoder | [ ] | - | |
+| C8 | DenseEncoder | [x] | 2026-02-05 | |
 | C9 | SparseEncoder | [ ] | - | |
 | C10 | BatchProcessor | [ ] | - | |
 | C11 | VectorUpserter | [ ] | - | |
@@ -1733,12 +1733,12 @@ observability:
 |------|---------|--------|------|
 | 阶段 A | 3 | 3 | 100% |
 | 阶段 B | 14 | 14 | 100% |
-| 阶段 C | 15 | 7 | 47% |
+| 阶段 C | 15 | 8 | 53% |
 | 阶段 D | 7 | 0 | 0% |
 | 阶段 E | 6 | 0 | 0% |
 | 阶段 F | 5 | 0 | 0% |
 | 阶段 G | 4 | 0 | 0% |
-| **总计** | **54** | **24** | **44%** |
+| **总计** | **54** | **25** | **46%** |
 
 
 ---
@@ -2000,7 +2000,7 @@ observability:
 - **验收标准**：对 sample PDF（fixtures）能产出 Document，metadata 至少含 `source_path`。
 - **测试方法**：`pytest -q tests/unit/test_loader_pdf_contract.py`。
 
-### C4：Splitter 集成（调用 Libs）
+### C4：Splitter 集成（调用 Libs）✅
 - **目标**：在 Pipeline 中集成 `libs.splitter`，验证 Splitter 工厂配置是否生效。
 - **修改文件**：
   - `src/ingestion/pipeline.py`
@@ -2008,7 +2008,7 @@ observability:
 - **验收标准**：通过配置切换（例如改变 chunk_size），Ingestion Pipeline 产出的 chunk 长度发生相应变化。
 - **测试方法**：`pytest -q tests/unit/test_ingestion_splitter_integration.py`。
 
-### C5：Transform 抽象基类 + ChunkRefiner（规则去噪 + 可选 LLM 重写）
+### C5：Transform 抽象基类 + ChunkRefiner（规则去噪 + 可选 LLM 重写）✅
 - **目标**：定义 `BaseTransform`；实现 `ChunkRefiner`：先做规则去噪，再支持（可选）LLM 重写/规范化，并提供可配置开关与失败降级（LLM 不可用/异常时不阻塞 ingestion）。
 - **修改文件**：
   - `src/ingestion/transform/base_transform.py`
@@ -2021,7 +2021,7 @@ observability:
   - 降级行为：LLM 调用失败时回退到规则结果（可在 metadata 标记降级原因，但不抛出致命异常）。
 - **测试方法**：`pytest -q tests/unit/test_chunk_refiner.py`。
 
-### C6：MetadataEnricher（规则增强 + 可选 LLM 增强 + 降级）
+### C6：MetadataEnricher（规则增强 + 可选 LLM 增强 + 降级）✅
 - **目标**：实现元数据增强模块：提供规则增强的默认实现（例如从 chunk 文本抽取/推断 title、生成简短 summary、打 tags），并支持可选 LLM 增强（可配置开关 + 失败降级，不阻塞 ingestion）。
 - **修改文件**：
   - `src/ingestion/transform/metadata_enricher.py`
@@ -2032,7 +2032,7 @@ observability:
   - 降级行为：LLM 调用失败时回退到规则模式结果（可在 metadata 标记降级原因，但不抛出致命异常）。
 - **测试方法**：`pytest -q tests/unit/test_metadata_enricher_contract.py`。
 
-### C7：ImageCaptioner（可选生成 caption + 降级不阻塞）
+### C7：ImageCaptioner（可选生成 caption + 降级不阻塞）✅
 - **目标**：实现 `image_captioner.py`：当启用 Vision LLM 且存在 image_refs 时生成 caption 并写回 chunk metadata；当禁用/不可用/异常时走降级路径，不阻塞 ingestion。
 - **修改文件**：
   - `src/ingestion/transform/image_captioner.py`
@@ -2043,7 +2043,7 @@ observability:
   - 降级模式：当配置禁用或异常时，chunk 保留 image_refs，但不生成 caption 且标记 `has_unprocessed_images`。
 - **测试方法**：`pytest -q tests/unit/test_image_captioner_fallback.py`。
 
-### C8：DenseEncoder（依赖 libs.embedding）
+### C8：DenseEncoder（依赖 libs.embedding）✅
 - **目标**：实现 `dense_encoder.py`，把 chunks.text 批量送入 `BaseEmbedding`。
 - **修改文件**：
   - `src/ingestion/embedding/dense_encoder.py`
