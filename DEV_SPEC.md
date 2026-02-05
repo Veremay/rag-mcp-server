@@ -2091,7 +2091,7 @@ observability:
 - **验收标准**：保存后文件存在；查找 image_id 返回正确路径。
 - **测试方法**：`pytest -q tests/unit/test_image_storage.py`。
 
-### C14：Pipeline 编排（MVP 串起来）
+### C14：Pipeline 编排（MVP 串起来）✅
 - **目标**：实现 `pipeline.py`：串行执行（integrity→load→split→transform→encode→store），并对失败步骤做清晰异常。
 - **修改文件**：
   - `src/ingestion/pipeline.py`
