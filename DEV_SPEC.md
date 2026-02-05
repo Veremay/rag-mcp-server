@@ -1679,7 +1679,7 @@ observability:
 | C10 | BatchProcessor | [x] | 2026-02-05 | |
 | C11 | VectorUpserter | [x] | 2026-02-05 | |
 | C12 | BM25Indexer | [x] | 2026-02-05 | |
-| C13 | ImageStorage | [ ] | - | |
+| C13 | ImageStorage | [x] | 2026-02-05 | |
 | C14 | Pipeline 编排（MVP 串起来） | [ ] | - | |
 | C15 | 脚本入口 ingest.py | [ ] | - | |
 
@@ -2083,7 +2083,7 @@ observability:
 - **验收标准**：build 后能 load 并对同一语料查询返回稳定 top ids。
 - **测试方法**：`pytest -q tests/unit/test_bm25_indexer_roundtrip.py`。
 
-### C13：ImageStorage（图片文件存储与索引表契约）
+### C13：ImageStorage（图片文件存储与索引表契约）✅
 - **目标**：实现 `image_storage.py`：保存图片到 `data/images/{collection}/`，并记录 image_id→path 映射（可先用 JSON/SQLite）。
 - **修改文件**：
   - `src/ingestion/storage/image_storage.py`
