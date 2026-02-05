@@ -42,3 +42,10 @@ markers = [
     "integration: Integration tests",
     "e2e: End-to-end tests",
 ]
+
+[tool.black]
+line-length = 88
+
+[tool.isort]
+profile = "black"
+line_length = 88
