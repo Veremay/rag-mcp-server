@@ -1,41 +1,53 @@
-from typing import List, Optional, Any
-from langchain_text_splitters import RecursiveCharacterTextSplitter as LCRecursiveSplitter
+from __future__ import annotations
+
+from typing import Any, List, Optional
+
 from src.libs.splitter.base_splitter import BaseSplitter, TraceContext
 
+try:
+    from langchain_text_splitters import (
+        RecursiveCharacterTextSplitter as LCRecursiveSplitter,
+    )
+except ModuleNotFoundError:
+    LCRecursiveSplitter = None
+
+
 class RecursiveSplitter(BaseSplitter):
-    """
-    Recursive splitter implementation wrapping langchain-text-splitters.
-    """
     def __init__(self, settings: Any):
-        """
-        Initialize the recursive splitter with settings.
-        
-        Args:
-            settings: Global settings object containing ingestion.splitter config
-        """
         splitter_config = settings.ingestion.splitter
         self.chunk_size = splitter_config.chunk_size
         self.chunk_overlap = splitter_config.chunk_overlap
-        
-        # Initialize LangChain splitter
-        # We use the standard separators list which is good for Markdown and Code
-        self._splitter = LCRecursiveSplitter(
-            chunk_size=self.chunk_size,
-            chunk_overlap=self.chunk_overlap,
-            length_function=len,
-            is_separator_regex=False
-        )
+        self._splitter = None
+        if LCRecursiveSplitter is not None:
+            self._splitter = LCRecursiveSplitter(
+                chunk_size=self.chunk_size,
+                chunk_overlap=self.chunk_overlap,
+                length_function=len,
+                is_separator_regex=False,
+            )
 
-    def split_text(self, text: str, trace: Optional[TraceContext] = None, **kwargs: Any) -> List[str]:
-        """
-        Split text into chunks using recursive character splitting.
-        
-        Args:
-            text: The text to split.
-            trace: Optional trace context (unused).
-            **kwargs: Additional arguments passed to LangChain splitter.
-            
-        Returns:
-            List of text chunks.
-        """
+    def split_text(
+        self, text: str, trace: Optional[TraceContext] = None, **kwargs: Any
+    ) -> List[str]:
+        if self._splitter is None:
+            return self._fallback_split(text)
         return self._splitter.split_text(text)
+
+    def _fallback_split(self, text: str) -> List[str]:
+        if not text:
+            return []
+
+        chunk_size = int(self.chunk_size) if int(self.chunk_size) > 0 else 1
+        overlap = int(self.chunk_overlap)
+        if overlap < 0:
+            overlap = 0
+        if overlap >= chunk_size:
+            overlap = max(chunk_size - 1, 0)
+
+        step = max(chunk_size - overlap, 1)
+        chunks: List[str] = []
+        for start in range(0, len(text), step):
+            chunk = text[start : start + chunk_size]
+            if chunk:
+                chunks.append(chunk)
+        return chunks
