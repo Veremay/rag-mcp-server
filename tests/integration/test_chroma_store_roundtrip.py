@@ -1,8 +1,12 @@
-import pytest
 import shutil
 import tempfile
 import os
 from dataclasses import dataclass
+
+import pytest
+
+pytest.importorskip("chromadb")
+
 from src.libs.vector_store.chroma_store import ChromaStore
 from src.libs.vector_store.base_vector_store import VectorRecord
 
