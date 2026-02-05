@@ -93,10 +93,20 @@ class MetadataEnricherSettings:
 
 
 @dataclass
+class ImageCaptionerSettings:
+    enabled: bool = False
+    prompt_path: str = "config/prompts/image_captioning.txt"
+    fallback_on_error: bool = True
+
+
+@dataclass
 class TransformSettings:
     chunk_refiner: ChunkRefinerSettings = field(default_factory=ChunkRefinerSettings)
     metadata_enricher: MetadataEnricherSettings = field(
         default_factory=MetadataEnricherSettings
+    )
+    image_captioner: ImageCaptionerSettings = field(
+        default_factory=ImageCaptionerSettings
     )
 
 
@@ -138,6 +148,7 @@ def load_settings(config_path: str = "config/settings.yaml") -> Settings:
     transform_data = ingestion_data.get("transform", {})
     chunk_refiner_data = transform_data.get("chunk_refiner", {})
     metadata_enricher_data = transform_data.get("metadata_enricher", {})
+    image_captioner_data = transform_data.get("image_captioner", {})
 
     return Settings(
         llm=LLMSettings(**config_data.get("llm", {})),
@@ -149,6 +160,7 @@ def load_settings(config_path: str = "config/settings.yaml") -> Settings:
             transform=TransformSettings(
                 chunk_refiner=ChunkRefinerSettings(**chunk_refiner_data),
                 metadata_enricher=MetadataEnricherSettings(**metadata_enricher_data),
+                image_captioner=ImageCaptionerSettings(**image_captioner_data),
             ),
         ),
         retrieval=RetrievalSettings(**config_data.get("retrieval", {})),
