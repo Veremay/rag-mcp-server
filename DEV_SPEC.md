@@ -1689,7 +1689,7 @@ observability:
 |---------|---------|------|---------|------|
 | D1 | QueryProcessor（关键词提取 + filters） | [x] | 2026-02-06 | |
 | D2 | DenseRetriever | [x] | 2026-02-06 | |
-| D3 | SparseRetriever（BM25） | [ ] | - | |
+| D3 | SparseRetriever（BM25） | [x] | 2026-02-06 | |
 | D4 | RRF Fusion | [ ] | - | |
 | D5 | MetadataFilter | [ ] | - | |
 | D6 | Rerank 集成与 Fallback | [ ] | - | |
