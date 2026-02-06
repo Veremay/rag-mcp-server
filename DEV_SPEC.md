@@ -1688,7 +1688,7 @@ observability:
 | 任务编号 | 任务名称 | 状态 | 完成日期 | 备注 |
 |---------|---------|------|---------|------|
 | D1 | QueryProcessor（关键词提取 + filters） | [x] | 2026-02-06 | |
-| D2 | DenseRetriever | [ ] | - | |
+| D2 | DenseRetriever | [x] | 2026-02-06 | |
 | D3 | SparseRetriever（BM25） | [ ] | - | |
 | D4 | RRF Fusion | [ ] | - | |
 | D5 | MetadataFilter | [ ] | - | |
