@@ -1691,7 +1691,7 @@ observability:
 | D2 | DenseRetriever | [x] | 2026-02-06 | |
 | D3 | SparseRetriever（BM25） | [x] | 2026-02-06 | |
 | D4 | RRF Fusion | [x] | 2026-02-06 | |
-| D5 | MetadataFilter | [ ] | - | |
+| D5 | HybridSearch 编排 | [x] | 2026-02-06 | |
 | D6 | Rerank 集成与 Fallback | [ ] | - | |
 | D7 | RetrievalPipeline 编排 | [ ] | - | |
 
@@ -1734,11 +1734,11 @@ observability:
 | 阶段 A | 3 | 3 | 100% |
 | 阶段 B | 14 | 14 | 100% |
 | 阶段 C | 15 | 15 | 100% |
-| 阶段 D | 7 | 4 | 57% |
+| 阶段 D | 7 | 5 | 71% |
 | 阶段 E | 6 | 0 | 0% |
 | 阶段 F | 5 | 0 | 0% |
 | 阶段 G | 4 | 0 | 0% |
-| **总计** | **54** | **36** | **67%** |
+| **总计** | **54** | **37** | **69%** |
 
 
 ---
@@ -2143,7 +2143,7 @@ observability:
 - **验收标准**：对构造的排名输入输出 deterministic；k 参数可配置。
 - **测试方法**：`pytest -q tests/unit/test_fusion_rrf.py`。
 
-### D5：HybridSearch 编排
+### D5：HybridSearch 编排 ✅
 - **目标**：实现 `hybrid_search.py`：并行/串行均可（先串行），调用 dense+sparse+fusion。
 - **修改文件**：
   - `src/core/query_engine/hybrid_search.py`
