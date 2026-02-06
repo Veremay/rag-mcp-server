@@ -1693,13 +1693,13 @@ observability:
 | D4 | RRF Fusion | [x] | 2026-02-06 | |
 | D5 | HybridSearch 编排 | [x] | 2026-02-06 | |
 | D6 | Rerank 集成与 Fallback | [x] | 2026-02-06 | |
-| D7 | RetrievalPipeline 编排 | [ ] | - | |
+| D7 | 脚本入口 query.py（查询可用） | [x] | 2026-02-06 | |
 
 #### 阶段 E：MCP Server 层与 Tools
 
 | 任务编号 | 任务名称 | 状态 | 完成日期 | 备注 |
 |---------|---------|------|---------|------|
-| E1 | MCP Server 骨架（Stdio Transport） | [ ] | - | |
+| E1 | MCP Server 骨架（Stdio Transport） | [x] | 2026-02-06 | |
 | E2 | query_knowledge_hub Tool | [ ] | - | |
 | E3 | list_collections Tool | [ ] | - | |
 | E4 | get_document_summary Tool | [ ] | - | |
@@ -1734,11 +1734,11 @@ observability:
 | 阶段 A | 3 | 3 | 100% |
 | 阶段 B | 14 | 14 | 100% |
 | 阶段 C | 15 | 15 | 100% |
-| 阶段 D | 7 | 6 | 86% |
-| 阶段 E | 6 | 0 | 0% |
+| 阶段 D | 7 | 7 | 100% |
+| 阶段 E | 6 | 1 | 17% |
 | 阶段 F | 5 | 0 | 0% |
 | 阶段 G | 4 | 0 | 0% |
-| **总计** | **54** | **38** | **70%** |
+| **总计** | **54** | **40** | **74%** |
 
 
 ---
@@ -2160,11 +2160,44 @@ observability:
 - **验收标准**：模拟后端异常时不影响最终返回，且标记 fallback=true。
 - **测试方法**：`pytest -q tests/unit/test_reranker_fallback.py`。
 
+### D7：脚本入口 query.py（查询可用）
+- **目标**：实现 `scripts/query.py`，作为在线查询的命令行入口，调用完整的 HybridSearch + Reranker 流程并输出检索结果。
+- **前置依赖**：D5（HybridSearch）、D6（Reranker）
+- **修改文件**：
+  - `scripts/query.py`
+- **实现功能**：
+  - **参数支持**：
+    - `--query "问题"`：必填，查询文本
+    - `--top-k 10`：可选，返回结果数量（默认 10）
+    - `--collection xxx`：可选，限定检索集合
+    - `--verbose`：可选，显示各阶段中间结果
+    - `--no-rerank`：可选，跳过 Reranker 阶段
+  - **输出内容**：
+    - 默认模式：Top-K 结果（序号、score、文本摘要、来源文件、页码）
+    - Verbose 模式：额外显示 Dense 召回结果、Sparse 召回结果、Fusion 结果、Rerank 结果
+  - **内部流程**：
+    1. 加载配置 `Settings`
+    2. 初始化组件（EmbeddingClient、VectorStore、BM25Indexer、Reranker）
+    3. 创建 `QueryProcessor`、`DenseRetriever`、`SparseRetriever`、`HybridSearch` 实例
+    4. 调用 `HybridSearch.search()` 获取候选结果
+    5. 调用 `Reranker.rerank()` 进行精排（除非 `--no-rerank`）
+    6. 格式化输出结果
+- **验收标准**：
+  - 命令行可运行：`python scripts/query.py --query "如何配置 Azure？"`
+  - 返回格式化的 Top-K 检索结果
+  - `--verbose` 模式显示各阶段中间结果（便于调试）
+  - 无数据时返回友好提示（如"未找到相关文档，请先运行 ingest.py 摄取数据"）
+- **测试方法**：手动运行 `python scripts/query.py --query "测试查询" --verbose`（依赖已摄取的数据）。
+- **与 MCP Tool 的关系**：
+  - `scripts/query.py` 是开发调试用的命令行工具
+  - `E2 query_knowledge_hub` 是生产环境的 MCP Tool
+  - 两者共享 Core 层逻辑（HybridSearch + Reranker），但入口和输出格式不同
+
 ---
 
 ## 阶段 E：MCP Server 层与 Tools（目标：对外可用的 MCP tools）
 
-### E1：MCP Server 入口与 Stdio 约束
+### E1：MCP Server 入口与 Stdio 约束 ✅
 - **目标**：实现 `mcp_server/server.py`：遵循"stdout 只输出 MCP 消息，日志到 stderr"。
 - **修改文件**：
   - `src/mcp_server/server.py`
