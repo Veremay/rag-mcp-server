@@ -1690,7 +1690,7 @@ observability:
 | D1 | QueryProcessor（关键词提取 + filters） | [x] | 2026-02-06 | |
 | D2 | DenseRetriever | [x] | 2026-02-06 | |
 | D3 | SparseRetriever（BM25） | [x] | 2026-02-06 | |
-| D4 | RRF Fusion | [ ] | - | |
+| D4 | RRF Fusion | [x] | 2026-02-06 | |
 | D5 | MetadataFilter | [ ] | - | |
 | D6 | Rerank 集成与 Fallback | [ ] | - | |
 | D7 | RetrievalPipeline 编排 | [ ] | - | |
@@ -1734,11 +1734,11 @@ observability:
 | 阶段 A | 3 | 3 | 100% |
 | 阶段 B | 14 | 14 | 100% |
 | 阶段 C | 15 | 15 | 100% |
-| 阶段 D | 7 | 0 | 0% |
+| 阶段 D | 7 | 4 | 57% |
 | 阶段 E | 6 | 0 | 0% |
 | 阶段 F | 5 | 0 | 0% |
 | 阶段 G | 4 | 0 | 0% |
-| **总计** | **54** | **32** | **59%** |
+| **总计** | **54** | **36** | **67%** |
 
 
 ---
@@ -2111,7 +2111,7 @@ observability:
 
 ## 阶段 D：Retrieval MVP（目标：能 query 并返回 Top-K chunks）
 
-### D1：QueryProcessor（关键词提取 + filters 结构）
+### D1：QueryProcessor（关键词提取 + filters 结构）✅
 - **目标**：实现 `query_processor.py`：关键词提取（先规则/分词），并解析通用 filters 结构（可空实现）。
 - **修改文件**：
   - `src/core/query_engine/query_processor.py`
@@ -2119,7 +2119,7 @@ observability:
 - **验收标准**：对输入 query 输出 `keywords` 非空（可根据停用词策略），filters 为 dict。
 - **测试方法**：`pytest -q tests/unit/test_query_processor.py`。
 
-### D2：DenseRetriever（调用 VectorStore.query）
+### D2：DenseRetriever（调用 VectorStore.query）✅
 - **目标**：实现 `dense_retriever.py`，把 query embedding 与 filters 交给 VectorStore。
 - **修改文件**：
   - `src/core/query_engine/dense_retriever.py`
@@ -2127,7 +2127,7 @@ observability:
 - **验收标准**：当 VectorStore 返回候选列表时，dense retriever 透传并规范化 score。
 - **测试方法**：`pytest -q tests/unit/test_dense_retriever.py`（mock vector store）。
 
-### D3：SparseRetriever（BM25 查询）
+### D3：SparseRetriever（BM25 查询）✅
 - **目标**：实现 `sparse_retriever.py`：从 `data/db/bm25/` 载入索引并查询。
 - **修改文件**：
   - `src/core/query_engine/sparse_retriever.py`
@@ -2135,7 +2135,7 @@ observability:
 - **验收标准**：对已构建索引的 fixtures 语料，关键词检索命中预期 chunk_id。
 - **测试方法**：`pytest -q tests/unit/test_sparse_retriever.py`。
 
-### D4：Fusion（RRF 实现）
+### D4：Fusion（RRF 实现）✅
 - **目标**：实现 `fusion.py`：RRF 融合 dense/sparse 排名并输出统一排序。
 - **修改文件**：
   - `src/core/query_engine/fusion.py`
