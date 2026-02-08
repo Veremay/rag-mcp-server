@@ -157,3 +157,19 @@ cython_debug/
 *.swp
 *.swo
 .DS_Store
+
+# Project local data / indices / logs (RAG runtime artifacts)
+/data/cache/
+/data/db/
+/data/images/
+/logs/
+
+# Local env files
+.envrc
+.env.local
+.env.*.local
+
+# OS / editor extras
+.fleet/
+.nova/
+.history/

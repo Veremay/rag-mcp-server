@@ -78,10 +78,11 @@ class ChromaStore(BaseVectorStore):
         Returns:
             List of VectorRecord objects ordered by similarity.
         """
+        effective_filters = filters or None
         results = self.collection.query(
             query_embeddings=[vector],
             n_results=top_k,
-            where=filters,
+            where=effective_filters,
             include=["embeddings", "documents", "metadatas", "distances"],
         )
 
@@ -101,7 +102,7 @@ class ChromaStore(BaseVectorStore):
             records.append(
                 VectorRecord(
                     id=ids[i],
-                    embedding=embeddings[i],
+                    embedding=list(embeddings[i]),
                     content=documents[i],
                     metadata=metadatas[i] if metadatas[i] else {},
                 )

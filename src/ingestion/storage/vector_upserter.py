@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence
 
@@ -31,6 +32,20 @@ class VectorUpserter:
         self._settings = settings
         self._vector_store = vector_store or VectorStoreFactory.create(settings)
 
+    def _normalize_metadata_for_chroma(
+        self, metadata: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        out: Dict[str, Any] = {}
+        for k, v in metadata.items():
+            if isinstance(v, (str, int, float, bool)) or v is None:
+                out[k] = v
+                continue
+            if isinstance(v, (list, dict, tuple, set)):
+                out[k] = json.dumps(v, ensure_ascii=False)
+                continue
+            out[k] = str(v)
+        return out
+
     def build_records(
         self, chunks: Sequence[Chunk], dense_vectors: Sequence[Sequence[float]]
     ) -> List[VectorRecord]:
@@ -52,6 +67,11 @@ class VectorUpserter:
             metadata.setdefault("source_path", source_path)
             metadata.setdefault("section_path", section_path)
             metadata.setdefault("content_hash", content_hash)
+            backend = getattr(
+                getattr(self._settings, "vector_store", None), "backend", None
+            )
+            if backend is not None and str(backend).lower() == "chroma":
+                metadata = self._normalize_metadata_for_chroma(metadata)
 
             records.append(
                 VectorRecord(
