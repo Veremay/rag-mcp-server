@@ -1700,11 +1700,11 @@ observability:
 | 任务编号 | 任务名称 | 状态 | 完成日期 | 备注 |
 |---------|---------|------|---------|------|
 | E1 | MCP Server 骨架（Stdio Transport） | [x] | 2026-02-06 | |
-| E2 | query_knowledge_hub Tool | [ ] | - | |
-| E3 | list_collections Tool | [ ] | - | |
-| E4 | get_document_summary Tool | [ ] | - | |
-| E5 | 多模态返回（ImageContent） | [ ] | - | |
-| E6 | 错误处理与协议合规 | [ ] | - | |
+| E2 | Protocol Handler 协议解析与能力协商 | [ ] | - | |
+| E3 | query_knowledge_hub Tool | [ ] | - | |
+| E4 | list_collections Tool | [ ] | - | |
+| E5 | get_document_summary Tool | [ ] | - | |
+| E6 | 多模态返回（Text + Image） | [ ] | - | |
 
 #### 阶段 F：Observability + Evaluation
 
@@ -2205,8 +2205,8 @@ observability:
 - **验收标准**：启动 server 能完成 initialize；stderr 有日志但 stdout 不污染。
 - **测试方法**：`pytest -q tests/integration/test_mcp_server.py`（子进程方式）。
 
-### E1.5：Protocol Handler 协议解析与能力协商
-- **目标**：实现 `mcp_server/protocol_handler.py`：封装 JSON-RPC 2.0 协议解析，处理 `initialize`、`tools/list`、`tools/call` 三类核心方法。
+### E2：Protocol Handler 协议解析与能力协商
+- **目标**：实现 `mcp_server/protocol_handler.py`：封装 JSON-RPC 2.0 协议解析，处理 `initialize`、`tools/list`、`tools/call` 三类核心方法，并实现规范的错误处理。
 - **修改文件**：
   - `src/mcp_server/protocol_handler.py`
   - `tests/unit/test_protocol_handler.py`
@@ -2215,26 +2215,35 @@ observability:
     - `handle_initialize(params)` → 返回 server capabilities（支持的 tools 列表、版本信息）
     - `handle_tools_list()` → 返回已注册的 tool schema（name, description, inputSchema）
     - `handle_tools_call(name, arguments)` → 路由到具体 tool 执行，捕获异常并转换为 JSON-RPC error
-  - **错误码规范**：遵循 JSON-RPC 2.0（-32600 Invalid Request, -32601 Method not found, -32602 Invalid params）
+  - **错误码规范**：遵循 JSON-RPC 2.0（-32600 Invalid Request, -32601 Method not found, -32602 Invalid params, -32603 Internal error）
   - **能力协商**：在 `initialize` 响应中声明 `capabilities.tools`
 - **验收标准**：
   - 发送 `initialize` 请求能返回正确的 `serverInfo` 和 `capabilities`
   - 发送 `tools/list` 能返回已注册 tools 的 schema
   - 发送 `tools/call` 能正确路由并返回结果或规范错误
+  - **错误处理**：无效方法返回 -32601，参数错误返回 -32602，内部异常返回 -32603 且不泄露堆栈
 - **测试方法**：`pytest -q tests/unit/test_protocol_handler.py`。
 
-### E2：实现 tool：query_knowledge_hub
-### E2：实现 tool：query_knowledge_hub### E2：实现 tool：query_knowledge_hub
-- **目标**：实现 `tools/query_knowledge_hub.py`：调用 query engine，返回 Markdown + structured citations。
+### E3：实现 tool：query_knowledge_hub
+- **目标**：实现 `tools/query_knowledge_hub.py`：调用 HybridSearch + Reranker，构建带引用的响应，返回 Markdown + structured citations。
+- **前置依赖**：D5（HybridSearch）、D6（Reranker）、E1（Server）、E2（Protocol Handler）
 - **修改文件**：
   - `src/mcp_server/tools/query_knowledge_hub.py`
-  - `src/core/response/response_builder.py`
-  - `src/core/response/citation_generator.py`
+  - `src/core/response/response_builder.py`（新增：构建 MCP 响应格式）
+  - `src/core/response/citation_generator.py`（新增：生成引用信息）
+  - `tests/unit/test_response_builder.py`（新增）
   - `tests/integration/test_mcp_server.py`（补用例）
-- **验收标准**：tool 返回 content[0] 为可读 Markdown；structuredContent.citations 含 source/page/chunk_id/score。
+- **实现类/函数**：
+  - `ResponseBuilder.build(retrieval_results, query) -> MCPResponse`：构建 MCP 格式响应
+  - `CitationGenerator.generate(retrieval_results) -> List[Citation]`：生成引用列表
+  - `query_knowledge_hub(query, top_k?, collection?) -> MCPToolResult`：Tool 入口函数
+- **验收标准**：
+  - tool 返回 `content[0]` 为可读 Markdown（含 `[1]`、`[2]` 等引用标注）
+  - `structuredContent.citations` 包含 `source`/`page`/`chunk_id`/`score` 字段
+  - 无结果时返回友好提示而非空数组
 - **测试方法**：`pytest -q tests/integration/test_mcp_server.py -k query_knowledge_hub`。
 
-### E3：实现 tool：list_collections
+### E4：实现 tool：list_collections
 - **目标**：实现 `tools/list_collections.py`：列出 `data/documents/` 下集合并附带统计（可延后到下一步）。
 - **修改文件**：
   - `src/mcp_server/tools/list_collections.py`
@@ -2242,7 +2251,7 @@ observability:
 - **验收标准**：对 fixtures 中的目录结构能返回集合名列表。
 - **测试方法**：`pytest -q tests/unit/test_list_collections.py`。
 
-### E4：实现 tool：get_document_summary
+### E5：实现 tool：get_document_summary
 - **目标**：实现 `tools/get_document_summary.py`：按 doc_id 返回 title/summary/tags（可先从 metadata/缓存取）。
 - **修改文件**：
   - `src/mcp_server/tools/get_document_summary.py`
@@ -2250,7 +2259,7 @@ observability:
 - **验收标准**：对不存在 doc_id 返回规范错误；存在时返回结构化信息。
 - **测试方法**：`pytest -q tests/unit/test_get_document_summary.py`。
 
-### E5：多模态返回组装（Text + Image）
+### E6：多模态返回组装（Text + Image）
 - **目标**：实现 `multimodal_assembler.py`：命中 chunk 含 image_refs 时读取图片并 base64 返回 ImageContent。
 - **修改文件**：
   - `src/core/response/multimodal_assembler.py`

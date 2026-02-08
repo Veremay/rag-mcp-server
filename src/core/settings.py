@@ -1,9 +1,22 @@
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import yaml
+
+_ENV_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
+
+
+def _expand_env_vars(value: Any) -> Any:
+    if isinstance(value, str):
+        return _ENV_PATTERN.sub(lambda m: os.getenv(m.group(1), ""), value)
+    if isinstance(value, dict):
+        return {k: _expand_env_vars(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_expand_env_vars(v) for v in value]
+    return value
 
 
 @dataclass
@@ -141,6 +154,7 @@ def load_settings(config_path: str = "config/settings.yaml") -> Settings:
     if not config_data:
         raise ValueError("Configuration file is empty")
 
+    config_data = _expand_env_vars(config_data)
     validate_settings(config_data)
 
     ingestion_data = config_data.get("ingestion", {})

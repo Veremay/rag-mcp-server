@@ -53,10 +53,22 @@ class DenseRetriever:
             vectors = self._embedding.embed([normalized_query])
         else:
             vectors = self._embedding.embed([normalized_query], trace=trace)
-        if not vectors or not vectors[0]:
+        if vectors is None:
+            return []
+        try:
+            if len(vectors) == 0:
+                return []
+        except TypeError:
             return []
 
-        query_vector = list(vectors[0])
+        first = vectors[0]
+        try:
+            if len(first) == 0:
+                return []
+        except TypeError:
+            return []
+
+        query_vector = list(first)
         if trace is None:
             records = self._vector_store.query(
                 vector=query_vector, top_k=effective_top_k, filters=filters
@@ -74,7 +86,10 @@ class DenseRetriever:
 
 
 def _cosine_similarity(a: Sequence[float], b: Sequence[float]) -> float:
-    if not a or not b:
+    try:
+        if len(a) == 0 or len(b) == 0:
+            return 0.0
+    except TypeError:
         return 0.0
     if len(a) != len(b):
         return 0.0

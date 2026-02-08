@@ -9,7 +9,8 @@ llm:
 # Embedding Configuration
 embedding:
   provider: openai          # openai | ollama | local
-  model: text-embedding-3-small
+  model: text-embedding-v4
+  base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
   api_key: "${OPENAI_API_KEY}"
 
 # Vision LLM Configuration (for image captioning)
