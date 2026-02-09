@@ -49,7 +49,11 @@ class BatchProcessor:
             sparse_batch = sparse_encoder.encode(batch, trace=trace)
 
             duration_ms = (time.perf_counter() - t0) * 1000.0
-            batches.append(BatchMetrics(batch_index=batch_index, size=len(batch), duration_ms=duration_ms))
+            batches.append(
+                BatchMetrics(
+                    batch_index=batch_index, size=len(batch), duration_ms=duration_ms
+                )
+            )
 
             dense_vectors.extend(dense_batch)
             sparse_vectors.extend(sparse_batch)
@@ -91,7 +95,11 @@ class BatchProcessor:
             sparse_batch = await sparse_encoder.aencode(batch, trace=trace)
 
             duration_ms = (time.perf_counter() - t0) * 1000.0
-            batches.append(BatchMetrics(batch_index=batch_index, size=len(batch), duration_ms=duration_ms))
+            batches.append(
+                BatchMetrics(
+                    batch_index=batch_index, size=len(batch), duration_ms=duration_ms
+                )
+            )
 
             dense_vectors.extend(dense_batch)
             sparse_vectors.extend(sparse_batch)

@@ -1,16 +1,17 @@
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
+
 
 class BaseEvaluator(ABC):
     """Abstract base class for Evaluator implementations."""
 
     @abstractmethod
     def evaluate(
-        self, 
-        query: str, 
-        retrieved_ids: List[str], 
+        self,
+        query: str,
+        retrieved_ids: List[str],
         golden_ids: List[str],
-        trace: Optional[Any] = None
+        trace: Optional[Any] = None,
     ) -> Dict[str, float]:
         """
         Evaluate retrieval results against golden standard.

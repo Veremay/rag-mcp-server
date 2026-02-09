@@ -1,16 +1,17 @@
 from abc import ABC, abstractmethod
-from typing import List, Any, Optional
+from typing import Any, List, Optional
+
 
 class BaseReranker(ABC):
     """Abstract base class for Reranker implementations."""
 
     @abstractmethod
     def rerank(
-        self, 
-        query: str, 
-        candidates: List[Any], 
+        self,
+        query: str,
+        candidates: List[Any],
         top_k: Optional[int] = None,
-        trace: Optional[Any] = None
+        trace: Optional[Any] = None,
     ) -> List[Any]:
         """
         Rerank a list of candidates based on their relevance to the query.

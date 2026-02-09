@@ -1,6 +1,9 @@
-from typing import List, Any, Optional
+from typing import Any, List, Optional
+
 import openai
+
 from src.libs.embedding.base_embedding import BaseEmbedding
+
 
 class OpenAIEmbedding(BaseEmbedding):
     """
@@ -9,11 +12,11 @@ class OpenAIEmbedding(BaseEmbedding):
     """
 
     def __init__(
-        self, 
-        api_key: str, 
-        model: str = "text-embedding-3-small", 
-        base_url: Optional[str] = None, 
-        **kwargs: Any
+        self,
+        api_key: str,
+        model: str = "text-embedding-3-small",
+        base_url: Optional[str] = None,
+        **kwargs: Any,
     ):
         """
         Initialize the OpenAI Embedding provider.
@@ -45,20 +48,18 @@ class OpenAIEmbedding(BaseEmbedding):
         if not texts:
             return []
 
-        # Remove empty strings to avoid API errors if necessary, 
-        # but spec says "Empty input... have clear behavior". 
+        # Remove empty strings to avoid API errors if necessary,
+        # but spec says "Empty input... have clear behavior".
         # OpenAI handles empty strings by returning error or embedding depending on version.
         # We will let the API decide or handle specific cases if we see failures.
         # Actually, for robustness, we should probably allow empty strings if the user sends them,
-        # but usually embedding an empty string is useless. 
+        # but usually embedding an empty string is useless.
         # Let's just pass through for now and handle errors.
 
         try:
             # Merge kwargs with defaults if needed
             response = self.client.embeddings.create(
-                input=texts,
-                model=self.model,
-                **kwargs
+                input=texts, model=self.model, **kwargs
             )
             # OpenAI response.data is a list of objects sorted by index
             # Ensure we return in the same order
@@ -68,7 +69,9 @@ class OpenAIEmbedding(BaseEmbedding):
         except openai.APIStatusError as e:
             raise RuntimeError(f"OpenAI Embedding API returned error: {e}") from e
         except Exception as e:
-            raise RuntimeError(f"Unexpected error during embedding generation: {e}") from e
+            raise RuntimeError(
+                f"Unexpected error during embedding generation: {e}"
+            ) from e
 
     async def aembed(self, texts: List[str], **kwargs: Any) -> List[List[float]]:
         """
@@ -79,9 +82,7 @@ class OpenAIEmbedding(BaseEmbedding):
 
         try:
             response = await self.aclient.embeddings.create(
-                input=texts,
-                model=self.model,
-                **kwargs
+                input=texts, model=self.model, **kwargs
             )
             return [data.embedding for data in response.data]
         except openai.APIConnectionError as e:
@@ -89,4 +90,6 @@ class OpenAIEmbedding(BaseEmbedding):
         except openai.APIStatusError as e:
             raise RuntimeError(f"OpenAI Embedding API returned error: {e}") from e
         except Exception as e:
-            raise RuntimeError(f"Unexpected error during embedding generation: {e}") from e
+            raise RuntimeError(
+                f"Unexpected error during embedding generation: {e}"
+            ) from e

@@ -1,7 +1,7 @@
 import logging
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 
-from src.core.settings import Settings, ImageCaptionerSettings
+from src.core.settings import ImageCaptionerSettings, Settings
 from src.ingestion.models import Chunk
 from src.ingestion.transform.base_transform import BaseTransform, TraceContext
 from src.libs.llm.base_llm import BaseLLM
@@ -22,28 +22,29 @@ class ImageCaptioner(BaseTransform):
         llm: Optional[BaseLLM] = None,
     ):
         self._settings = settings
-        self._cfg: ImageCaptionerSettings = (
-            settings.ingestion.transform.image_captioner
-        )
-        
+        self._cfg: ImageCaptionerSettings = settings.ingestion.transform.image_captioner
+
         # Load prompt
         self._prompt = "Describe this image in detail."
         if self._cfg.prompt_path:
             try:
                 # Handle relative paths from project root
                 import os
+
                 prompt_path = self._cfg.prompt_path
                 if not os.path.isabs(prompt_path):
                     # Assuming CWD is project root, which is typical
                     pass
-                
+
                 if os.path.exists(prompt_path):
                     with open(prompt_path, "r", encoding="utf-8") as f:
                         self._prompt = f.read().strip()
                 else:
                     logger.warning(f"Prompt file not found: {prompt_path}")
             except Exception as e:
-                logger.warning(f"Failed to load prompt from {self._cfg.prompt_path}: {e}")
+                logger.warning(
+                    f"Failed to load prompt from {self._cfg.prompt_path}: {e}"
+                )
 
         self._llm: Optional[BaseLLM] = llm
         if self._llm is None and self._cfg.enabled:
@@ -98,7 +99,7 @@ class ImageCaptioner(BaseTransform):
 
         if captions:
             chunk.metadata["image_captions"] = captions
-        
+
         if errors:
             chunk.metadata["has_unprocessed_images"] = True
             existing_errors = chunk.metadata.get("processing_errors", [])
@@ -106,7 +107,7 @@ class ImageCaptioner(BaseTransform):
                 existing_errors.extend(errors)
                 chunk.metadata["processing_errors"] = existing_errors
             else:
-                 chunk.metadata["processing_errors"] = errors
+                chunk.metadata["processing_errors"] = errors
 
     def _generate_caption(self, img_id: str) -> str:
         """
@@ -118,21 +119,21 @@ class ImageCaptioner(BaseTransform):
         # Construct message for Vision LLM.
         # We assume the LLM provider supports 'content' as list for vision tasks.
         # Using a dummy URL for now since we don't have a real image store service yet.
-        # In a real implementation, we would read the file and encode base64 
+        # In a real implementation, we would read the file and encode base64
         # or provide a valid accessible URL.
-        
-        # NOTE: This relies on the specific LLM implementation (e.g. OpenAI) 
+
+        # NOTE: This relies on the specific LLM implementation (e.g. OpenAI)
         # handling the list content correctly despite BaseLLM type hints.
         messages = [
             {
                 "role": "user",
                 "content": [
                     {"type": "text", "text": self._prompt},
-                    # Placeholder image URL - likely won't work with real API 
+                    # Placeholder image URL - likely won't work with real API
                     # without valid URL/base64. But fine for mocking/testing.
                     {"type": "image_url", "image_url": {"url": f"file://{img_id}"}},
                 ],
             }
         ]
 
-        return self._llm.chat(messages) # type: ignore
+        return self._llm.chat(messages)  # type: ignore

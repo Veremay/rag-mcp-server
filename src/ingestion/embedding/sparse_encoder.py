@@ -11,7 +11,9 @@ class SparseEncoder:
     def __init__(self, token_pattern: str = r"\w+"):
         self._token_re = re.compile(token_pattern, flags=re.UNICODE)
 
-    def encode(self, chunks: List[Chunk], trace: Optional[Any] = None) -> List[Dict[str, float]]:
+    def encode(
+        self, chunks: List[Chunk], trace: Optional[Any] = None
+    ) -> List[Dict[str, float]]:
         if not chunks:
             return []
 
@@ -28,5 +30,7 @@ class SparseEncoder:
 
         return outputs
 
-    async def aencode(self, chunks: List[Chunk], trace: Optional[Any] = None) -> List[Dict[str, float]]:
+    async def aencode(
+        self, chunks: List[Chunk], trace: Optional[Any] = None
+    ) -> List[Dict[str, float]]:
         return self.encode(chunks, trace=trace)

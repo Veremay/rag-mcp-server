@@ -1,3 +1,3 @@
-from .models import Document, Chunk
+from .models import Chunk, Document
 
 __all__ = ["Document", "Chunk"]
