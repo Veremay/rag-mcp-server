@@ -1700,7 +1700,7 @@ observability:
 | 任务编号 | 任务名称 | 状态 | 完成日期 | 备注 |
 |---------|---------|------|---------|------|
 | E1 | MCP Server 骨架（Stdio Transport） | [x] | 2026-02-06 | |
-| E2 | Protocol Handler 协议解析与能力协商 | [ ] | - | |
+| E2 | Protocol Handler 协议解析与能力协商 | [x] | 2026-02-09 | |
 | E3 | query_knowledge_hub Tool | [ ] | - | |
 | E4 | list_collections Tool | [ ] | - | |
 | E5 | get_document_summary Tool | [ ] | - | |
@@ -1735,10 +1735,10 @@ observability:
 | 阶段 B | 14 | 14 | 100% |
 | 阶段 C | 15 | 15 | 100% |
 | 阶段 D | 7 | 7 | 100% |
-| 阶段 E | 6 | 1 | 17% |
+| 阶段 E | 6 | 2 | 33% |
 | 阶段 F | 5 | 0 | 0% |
 | 阶段 G | 4 | 0 | 0% |
-| **总计** | **54** | **40** | **74%** |
+| **总计** | **54** | **41** | **76%** |
 
 
 ---
@@ -2205,7 +2205,7 @@ observability:
 - **验收标准**：启动 server 能完成 initialize；stderr 有日志但 stdout 不污染。
 - **测试方法**：`pytest -q tests/integration/test_mcp_server.py`（子进程方式）。
 
-### E2：Protocol Handler 协议解析与能力协商
+### E2：Protocol Handler 协议解析与能力协商 ✅
 - **目标**：实现 `mcp_server/protocol_handler.py`：封装 JSON-RPC 2.0 协议解析，处理 `initialize`、`tools/list`、`tools/call` 三类核心方法，并实现规范的错误处理。
 - **修改文件**：
   - `src/mcp_server/protocol_handler.py`
