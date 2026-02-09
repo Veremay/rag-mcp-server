@@ -1,28 +1,35 @@
-from typing import Dict, Type, Optional
+from typing import Dict, Optional, Protocol, Type
 
 from src.core.settings import Settings
 from src.libs.splitter.base_splitter import BaseSplitter
 
-def _try_load_recursive_splitter() -> Optional[Type[BaseSplitter]]:
+
+class SplitterProvider(Protocol):
+    def __call__(self, settings: Settings) -> BaseSplitter: ...
+
+
+def _try_load_recursive_splitter() -> Optional[SplitterProvider]:
     try:
         from src.libs.splitter.recursive_splitter import RecursiveSplitter
     except ModuleNotFoundError:
         return None
     return RecursiveSplitter
 
+
 class SplitterFactory:
     """
     Factory for creating Splitter instances based on configuration.
     Supports dynamic registration of providers.
     """
-    _registry: Dict[str, Type[BaseSplitter]] = {}
+
+    _registry: Dict[str, SplitterProvider] = {}
 
     _recursive_splitter = _try_load_recursive_splitter()
     if _recursive_splitter is not None:
         _registry["recursive"] = _recursive_splitter
 
     @classmethod
-    def register(cls, provider: str, splitter_cls: Type[BaseSplitter]) -> None:
+    def register(cls, provider: str, splitter_cls: SplitterProvider) -> None:
         """
         Register a new splitter provider class.
 
@@ -47,13 +54,13 @@ class SplitterFactory:
             ValueError: If the provider is not registered.
         """
         provider = settings.ingestion.splitter.provider.lower()
-        
+
         if provider not in cls._registry:
             raise ValueError(
                 f"Unknown splitter provider: '{provider}'. "
                 f"Available providers: {list(cls._registry.keys())}"
             )
-        
+
         splitter_cls = cls._registry[provider]
-        
+
         return splitter_cls(settings)

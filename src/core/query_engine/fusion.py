@@ -45,8 +45,8 @@ class RRFFusion:
             dense_records[chunk_id] = hit.record
 
         sparse_ranks: Dict[str, int] = {}
-        for idx, hit in enumerate(sparse_hits, start=1):
-            chunk_id = str(hit.chunk_id)
+        for idx, sparse_hit in enumerate(sparse_hits, start=1):
+            chunk_id = str(sparse_hit.chunk_id)
             if chunk_id in sparse_ranks:
                 continue
             sparse_ranks[chunk_id] = idx
