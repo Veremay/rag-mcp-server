@@ -30,7 +30,9 @@ def query_knowledge_hub(
     settings = _get_settings()
     collection = (params.collection or "").strip() or None
     if not _has_any_data(settings, collection=collection):
-        return ResponseBuilder().build([], query=normalized_query)
+        return ResponseBuilder().build(
+            [], query=normalized_query, collection=collection
+        )
 
     query_for_search = (
         f"collection:{collection} {normalized_query}"
@@ -62,7 +64,12 @@ def query_knowledge_hub(
     if effective_top_k is not None:
         final_hits = final_hits[:effective_top_k]
 
-    return ResponseBuilder().build(final_hits, query=normalized_query)
+    return ResponseBuilder().build(
+        final_hits,
+        query=normalized_query,
+        collection=collection
+        or str(getattr(settings.vector_store, "collection_name", "")),
+    )
 
 
 @lru_cache(maxsize=1)

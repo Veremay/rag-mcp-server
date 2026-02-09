@@ -3,11 +3,11 @@ from pathlib import Path
 from typing import Any, List, Optional, Sequence
 
 from src.core.settings import Settings
-from src.ingestion.models import Document, Chunk
-from src.ingestion.embedding.batch_processor import BatchProcessResult, BatchProcessor
+from src.ingestion.embedding.batch_processor import BatchProcessor, BatchProcessResult
 from src.ingestion.embedding.dense_encoder import DenseEncoder
 from src.ingestion.embedding.sparse_encoder import SparseEncoder
-from src.ingestion.storage.bm25_indexer import BM25Indexer, BM25Index
+from src.ingestion.models import Chunk, Document
+from src.ingestion.storage.bm25_indexer import BM25Index, BM25Indexer
 from src.ingestion.storage.image_storage import ImageStorage
 from src.ingestion.storage.vector_upserter import UpsertResult, VectorUpserter
 from src.ingestion.transform.chunk_refiner import ChunkRefiner
@@ -111,6 +111,10 @@ class IngestionPipeline:
         try:
             split = self.split(document, trace=trace)
             chunks = split.chunks
+            for c in chunks:
+                meta = c.metadata
+                if isinstance(meta, dict):
+                    meta.setdefault("collection", str(collection))
         except Exception as e:
             raise RuntimeError("IngestionPipeline splitter step failed") from e
 
@@ -132,7 +136,9 @@ class IngestionPipeline:
         try:
             chunk_ids = [r.id for r in upsert.records]
             bm25 = self._build_bm25(
-                collection=collection, chunk_ids=chunk_ids, sparse_vectors=batch.sparse_vectors
+                collection=collection,
+                chunk_ids=chunk_ids,
+                sparse_vectors=batch.sparse_vectors,
             )
         except Exception as e:
             raise RuntimeError("IngestionPipeline bm25 step failed") from e
@@ -193,7 +199,9 @@ class IngestionPipeline:
 
         raise ValueError(f"Unsupported file extension: {ext}")
 
-    def _apply_transforms(self, chunks: List[Chunk], *, trace: Optional[Any]) -> List[Chunk]:
+    def _apply_transforms(
+        self, chunks: List[Chunk], *, trace: Optional[Any]
+    ) -> List[Chunk]:
         transforms = list(self._transforms) if self._transforms is not None else None
         if transforms is None:
             transforms = [
@@ -207,23 +215,40 @@ class IngestionPipeline:
             current = t.transform(current, trace=trace)
         return current
 
-    def _encode(self, chunks: List[Chunk], *, trace: Optional[Any]) -> BatchProcessResult:
+    def _encode(
+        self, chunks: List[Chunk], *, trace: Optional[Any]
+    ) -> BatchProcessResult:
         dense_encoder = self._dense_encoder or DenseEncoder(self._settings)
         sparse_encoder = self._sparse_encoder or SparseEncoder()
         batcher = self._batch_processor or BatchProcessor(batch_size=16)
-        return batcher.process(chunks, dense_encoder=dense_encoder, sparse_encoder=sparse_encoder, trace=trace)
+        return batcher.process(
+            chunks,
+            dense_encoder=dense_encoder,
+            sparse_encoder=sparse_encoder,
+            trace=trace,
+        )
 
     def _upsert(
-        self, chunks: Sequence[Chunk], dense_vectors: Sequence[Sequence[float]], *, trace: Optional[Any]
+        self,
+        chunks: Sequence[Chunk],
+        dense_vectors: Sequence[Sequence[float]],
+        *,
+        trace: Optional[Any],
     ) -> UpsertResult:
         upserter = VectorUpserter(self._settings, vector_store=self._vector_store)
         return upserter.upsert(chunks, dense_vectors, trace=trace)
 
     def _build_bm25(
-        self, *, collection: str, chunk_ids: Sequence[str], sparse_vectors: Sequence[dict[str, float]]
+        self,
+        *,
+        collection: str,
+        chunk_ids: Sequence[str],
+        sparse_vectors: Sequence[dict[str, float]],
     ) -> BM25Index:
         indexer = self._bm25_indexer or BM25Indexer()
-        return indexer.build(collection=collection, chunk_ids=chunk_ids, sparse_vectors=sparse_vectors)
+        return indexer.build(
+            collection=collection, chunk_ids=chunk_ids, sparse_vectors=sparse_vectors
+        )
 
     def _store_images(self, *, collection: str, document: Document) -> None:
         images = document.metadata.get("images")
@@ -237,12 +262,18 @@ class IngestionPipeline:
             image_id = item.get("image_id")
             data = item.get("data")
             ext = item.get("ext") or item.get("extension") or ".png"
-            if not isinstance(image_id, str) or not isinstance(data, (bytes, bytearray)):
+            if not isinstance(image_id, str) or not isinstance(
+                data, (bytes, bytearray)
+            ):
                 continue
-            storage.save(collection=collection, image_id=image_id, data=bytes(data), ext=str(ext))
+            storage.save(
+                collection=collection, image_id=image_id, data=bytes(data), ext=str(ext)
+            )
 
 
-def split_document(settings: Settings, document: Document, trace: Optional[Any] = None) -> List[Chunk]:
+def split_document(
+    settings: Settings, document: Document, trace: Optional[Any] = None
+) -> List[Chunk]:
     """
     Convenience function to split a document using the ingestion pipeline.
 

@@ -5,17 +5,28 @@ from typing import Any, Dict, List, Optional, Sequence
 
 from src.core.query_engine.hybrid_search import HybridSearchHit
 from src.core.response.citation_generator import CitationGenerator
+from src.core.response.multimodal_assembler import MultimodalAssembler
 
 JsonDict = Dict[str, Any]
 
 
 class ResponseBuilder:
     def __init__(
-        self, *, citation_generator: Optional[CitationGenerator] = None
+        self,
+        *,
+        citation_generator: Optional[CitationGenerator] = None,
+        multimodal_assembler: Optional[MultimodalAssembler] = None,
     ) -> None:
         self._citations = citation_generator or CitationGenerator()
+        self._multimodal = multimodal_assembler or MultimodalAssembler()
 
-    def build(self, hits: Sequence[HybridSearchHit], *, query: str) -> JsonDict:
+    def build(
+        self,
+        hits: Sequence[HybridSearchHit],
+        *,
+        query: str,
+        collection: Optional[str] = None,
+    ) -> JsonDict:
         normalized_query = (query or "").strip()
         if not hits:
             msg = "未找到相关文档，请先运行 ingest.py 摄取数据"
@@ -28,8 +39,10 @@ class ResponseBuilder:
         markdown = self._build_markdown(
             hits, citations=citations, query=normalized_query
         )
+        content: List[JsonDict] = [{"type": "text", "text": markdown}]
+        content.extend(self._multimodal.assemble(hits, collection=collection))
         return {
-            "content": [{"type": "text", "text": markdown}],
+            "content": content,
             "structuredContent": {"answer": markdown, "citations": citations},
         }
 
