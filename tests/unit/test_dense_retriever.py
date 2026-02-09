@@ -1,21 +1,21 @@
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
+from src.core.query_engine.dense_retriever import DenseRetriever
 from src.core.settings import (
     EmbeddingSettings,
     EvaluationSettings,
     IngestionSettings,
     LLMSettings,
     ObservabilitySettings,
-    RetrievalSettings,
     RerankSettings,
+    RetrievalSettings,
     Settings,
     SplitterSettings,
     TransformSettings,
     VectorStoreSettings,
     VisionLLMSettings,
 )
-from src.core.query_engine.dense_retriever import DenseRetriever
 from src.libs.embedding.base_embedding import BaseEmbedding
 from src.libs.vector_store.base_vector_store import BaseVectorStore, VectorRecord
 

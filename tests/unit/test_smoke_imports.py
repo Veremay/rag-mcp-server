@@ -1,5 +1,7 @@
-import pytest
 import importlib
+
+import pytest
+
 
 @pytest.mark.unit
 def test_core_imports():
@@ -9,6 +11,7 @@ def test_core_imports():
     assert importlib.import_module("src.libs")
     assert importlib.import_module("src.observability")
     assert importlib.import_module("src.mcp_server")
+
 
 @pytest.mark.unit
 def test_main_import():

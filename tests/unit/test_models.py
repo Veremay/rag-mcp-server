@@ -1,5 +1,7 @@
 import pytest
-from src.ingestion.models import Document, Chunk
+
+from src.ingestion.models import Chunk, Document
+
 
 class TestDocument:
     def test_document_initialization(self):
@@ -20,17 +22,15 @@ class TestDocument:
         assert data["id"] == "123"
         assert data["text"] == "Serialize me"
         assert data["metadata"] == {"key": "value"}
-        
+
         json_str = doc.model_dump_json()
         assert "Serialize me" in json_str
+
 
 class TestChunk:
     def test_chunk_initialization(self):
         chunk = Chunk(
-            text="Chunk text",
-            doc_id="doc_1",
-            start_char_idx=0,
-            end_char_idx=10
+            text="Chunk text", doc_id="doc_1", start_char_idx=0, end_char_idx=10
         )
         assert chunk.text == "Chunk text"
         assert chunk.doc_id == "doc_1"
@@ -45,10 +45,7 @@ class TestChunk:
 
     def test_chunk_serialization(self):
         chunk = Chunk(
-            id="chunk_1",
-            text="Content",
-            doc_id="doc_1",
-            metadata={"score": 0.9}
+            id="chunk_1", text="Content", doc_id="doc_1", metadata={"score": 0.9}
         )
         data = chunk.model_dump()
         assert data["id"] == "chunk_1"
