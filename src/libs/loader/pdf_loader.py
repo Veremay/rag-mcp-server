@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Union
+from typing import Any, Dict, Union
 
 from src.ingestion.models import Document
 from src.libs.loader.base_loader import BaseLoader
@@ -18,7 +18,12 @@ class PdfLoader(BaseLoader):
 
         try:
             from pypdf import PdfReader  # type: ignore
+        except ImportError as e:
+            raise RuntimeError(
+                "缺少依赖 pypdf，无法解析 PDF。请先执行：pip install pypdf"
+            ) from e
 
+        try:
             reader = PdfReader(str(path))
             if getattr(reader, "is_encrypted", False):
                 try:
@@ -36,7 +41,7 @@ class PdfLoader(BaseLoader):
         except Exception:
             text = ""
 
-        metadata = {
+        metadata: Dict[str, Any] = {
             "source_path": str(path.absolute()),
             "filename": path.name,
             "extension": path.suffix.lower(),

@@ -129,8 +129,16 @@
 git clone https://github.com/yourusername/Modular-RAG-MCP-Server.git
 cd Modular-RAG-MCP-Server
 
-# 安装依赖
-pip install -r requirements.txt
+# 创建虚拟环境（Python 3.10+）
+python -m venv .venv
+
+# 激活虚拟环境
+# Windows PowerShell: .\.venv\Scripts\Activate.ps1
+# macOS/Linux: source .venv/bin/activate
+
+# 安装依赖（从 pyproject.toml 安装）
+python -m pip install -U pip
+python -m pip install -e ".[dev]"
 
 # 配置环境变量（复制配置模板）
 cp .env.example .env

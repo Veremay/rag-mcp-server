@@ -9,6 +9,17 @@ import yaml
 _ENV_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 
 
+def _load_dotenv() -> None:
+    try:
+        from dotenv import find_dotenv, load_dotenv  # type: ignore
+    except ImportError:
+        return
+
+    path = find_dotenv(usecwd=True)
+    if path:
+        load_dotenv(path, override=False)
+
+
 def _expand_env_vars(value: Any) -> Any:
     if isinstance(value, str):
         return _ENV_PATTERN.sub(lambda m: os.getenv(m.group(1), ""), value)
@@ -145,6 +156,7 @@ class Settings:
 
 def load_settings(config_path: str = "config/settings.yaml") -> Settings:
     """Load settings from a YAML file."""
+    _load_dotenv()
     if not os.path.exists(config_path):
         raise FileNotFoundError(f"Configuration file not found: {config_path}")
 
