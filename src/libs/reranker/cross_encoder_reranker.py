@@ -1,8 +1,10 @@
 import logging
-from typing import List, Any, Optional
+from typing import Any, List, Optional
+
 from src.libs.reranker.base_reranker import BaseReranker
 
 logger = logging.getLogger(__name__)
+
 
 class CrossEncoderReranker(BaseReranker):
     """
@@ -21,7 +23,7 @@ class CrossEncoderReranker(BaseReranker):
         """
         self.model_name = model_name
         self.scorer = scorer
-        
+
         if self.scorer is None:
             self._load_model()
 
@@ -30,21 +32,24 @@ class CrossEncoderReranker(BaseReranker):
         try:
             # Lazy import to avoid hard dependency if not used
             from sentence_transformers import CrossEncoder
+
             logger.info(f"Loading CrossEncoder model: {self.model_name}")
             self.scorer = CrossEncoder(self.model_name)
         except ImportError:
-            logger.warning("sentence-transformers library not installed. CrossEncoderReranker will fail if used.")
+            logger.warning(
+                "sentence-transformers library not installed. CrossEncoderReranker will fail if used."
+            )
         except Exception as e:
             logger.error(f"Failed to load CrossEncoder model {self.model_name}: {e}")
-            # We don't raise here to allow factory to create the instance, 
+            # We don't raise here to allow factory to create the instance,
             # but rerank() will fail if scorer is missing.
 
     def rerank(
-        self, 
-        query: str, 
-        candidates: List[Any], 
+        self,
+        query: str,
+        candidates: List[Any],
         top_k: Optional[int] = None,
-        trace: Optional[Any] = None
+        trace: Optional[Any] = None,
     ) -> List[Any]:
         """
         Rerank candidates using Cross-Encoder scores.
@@ -66,7 +71,9 @@ class CrossEncoderReranker(BaseReranker):
             return []
 
         if self.scorer is None:
-            raise RuntimeError("CrossEncoder model is not initialized. Check logs for loading errors.")
+            raise RuntimeError(
+                "CrossEncoder model is not initialized. Check logs for loading errors."
+            )
 
         # Extract text content from candidates
         candidate_texts = []
@@ -89,19 +96,19 @@ class CrossEncoderReranker(BaseReranker):
             # Predict scores
             # Expecting scorer.predict to return a list/array of scores
             scores = self.scorer.predict(pairs)
-            
+
             # Combine scores with candidates
             scored_candidates = list(zip(scores, candidates))
-            
+
             # Sort by score descending
             scored_candidates.sort(key=lambda x: x[0], reverse=True)
-            
+
             # Extract candidates
             ranked_results = [c for s, c in scored_candidates]
-            
+
             if top_k:
                 ranked_results = ranked_results[:top_k]
-                
+
             return ranked_results
 
         except Exception as e:

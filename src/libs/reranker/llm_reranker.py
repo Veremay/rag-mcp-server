@@ -1,13 +1,14 @@
-import logging
 import json
+import logging
 import re
-from typing import List, Any, Optional, Dict
 from pathlib import Path
+from typing import Any, Dict, List, Optional
 
-from src.libs.reranker.base_reranker import BaseReranker
 from src.libs.llm.base_llm import BaseLLM
+from src.libs.reranker.base_reranker import BaseReranker
 
 logger = logging.getLogger(__name__)
+
 
 class LLMReranker(BaseReranker):
     """
@@ -33,7 +34,9 @@ class LLMReranker(BaseReranker):
         try:
             return Path(self.prompt_path).read_text(encoding="utf-8")
         except Exception as e:
-            logger.warning(f"Failed to load rerank prompt from {self.prompt_path}: {e}. Using default.")
+            logger.warning(
+                f"Failed to load rerank prompt from {self.prompt_path}: {e}. Using default."
+            )
             return (
                 "Rank the following passages based on relevance to the query: {query}.\n"
                 "Passages:\n{candidates}\n"
@@ -41,11 +44,11 @@ class LLMReranker(BaseReranker):
             )
 
     def rerank(
-        self, 
-        query: str, 
-        candidates: List[Any], 
+        self,
+        query: str,
+        candidates: List[Any],
         top_k: Optional[int] = None,
-        trace: Optional[Any] = None
+        trace: Optional[Any] = None,
     ) -> List[Any]:
         """
         Rerank candidates using LLM.
@@ -76,18 +79,22 @@ class LLMReranker(BaseReranker):
                 text = cand["text"]
             else:
                 text = str(cand)
-            
+
             # Truncate text to avoid excessive token usage (heuristic)
             text = text[:300].replace("\n", " ")
             candidate_texts.append(f"[{i}] {text}")
-        
+
         candidates_str = "\n".join(candidate_texts)
-        
+
         # Construct prompt
         try:
-            prompt = self._prompt_template.format(query=query, candidates=candidates_str)
+            prompt = self._prompt_template.format(
+                query=query, candidates=candidates_str
+            )
         except KeyError as e:
-            logger.error(f"Prompt template format error: {e}. Missing keys in template.")
+            logger.error(
+                f"Prompt template format error: {e}. Missing keys in template."
+            )
             # Fallback to simple concatenation if template is broken
             prompt = f"Query: {query}\nCandidates:\n{candidates_str}\nRank them as JSON list of indices."
 
@@ -95,12 +102,14 @@ class LLMReranker(BaseReranker):
             # Call LLM
             messages = [{"role": "user", "content": prompt}]
             response = self.llm.chat(messages)
-            
+
             # Parse response
             ranked_indices = self._parse_indices(response)
-            
+
             if not ranked_indices:
-                logger.warning("LLM returned no valid indices. Returning original order.")
+                logger.warning(
+                    "LLM returned no valid indices. Returning original order."
+                )
                 if top_k:
                     return candidates[:top_k]
                 return candidates
@@ -108,19 +117,19 @@ class LLMReranker(BaseReranker):
             # Reorder
             # Filter indices to ensure they are valid
             valid_indices = [i for i in ranked_indices if 0 <= i < len(candidates)]
-            
+
             # Create result list
             ranked_results = [candidates[i] for i in valid_indices]
-            
+
             # Append missing candidates at the end (if any) to preserve recall
             seen_indices = set(valid_indices)
             for i in range(len(candidates)):
                 if i not in seen_indices:
                     ranked_results.append(candidates[i])
-            
+
             if top_k:
                 ranked_results = ranked_results[:top_k]
-                
+
             return ranked_results
 
         except Exception as e:
@@ -139,11 +148,13 @@ class LLMReranker(BaseReranker):
                 clean_response = clean_response.split("```")[1]
                 if clean_response.startswith("json"):
                     clean_response = clean_response[4:]
-            
+
             # Try to find something that looks like a JSON list
-            match = re.search(r'\[[\d,\s]+\]', clean_response)
+            match = re.search(r"\[[\d,\s]+\]", clean_response)
             if match:
                 return json.loads(match.group(0))
         except Exception as e:
-            logger.debug(f"Failed to parse indices from response: {response[:100]}... Error: {e}")
+            logger.debug(
+                f"Failed to parse indices from response: {response[:100]}... Error: {e}"
+            )
         return []

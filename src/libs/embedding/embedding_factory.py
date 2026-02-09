@@ -1,14 +1,16 @@
-from typing import Dict, Type, Any
+from typing import Any, Dict, Type
+
 from src.core.settings import Settings
 from src.libs.embedding.base_embedding import BaseEmbedding
-from src.libs.embedding.openai_embedding import OpenAIEmbedding
 from src.libs.embedding.local_embedding import LocalEmbedding
+from src.libs.embedding.openai_embedding import OpenAIEmbedding
+
 
 class EmbeddingFactory:
     """
     Factory for creating Embedding instances based on configuration.
     """
-    
+
     @staticmethod
     def create(settings: Settings) -> BaseEmbedding:
         """
@@ -24,25 +26,23 @@ class EmbeddingFactory:
             ValueError: If the provider is not supported or missing config.
         """
         provider = settings.embedding.provider.lower()
-        
+
         if provider == "openai":
             if not settings.embedding.api_key:
                 raise ValueError("OpenAI embedding provider requires api_key")
-            
+
             kwargs = {}
             if settings.embedding.base_url:
                 kwargs["base_url"] = settings.embedding.base_url
-                
+
             return OpenAIEmbedding(
                 api_key=settings.embedding.api_key,
                 model=settings.embedding.model,
-                **kwargs
+                **kwargs,
             )
-            
+
         elif provider == "local":
-            return LocalEmbedding(
-                model=settings.embedding.model
-            )
-            
+            return LocalEmbedding(model=settings.embedding.model)
+
         else:
             raise ValueError(f"Unknown embedding provider: '{provider}'")

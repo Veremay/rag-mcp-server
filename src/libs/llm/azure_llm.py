@@ -1,17 +1,20 @@
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
+
 import openai
+
 from src.libs.llm.base_llm import BaseLLM
+
 
 class AzureOpenAILLM(BaseLLM):
     """Azure OpenAI LLM implementation."""
 
     def __init__(
-        self, 
-        api_key: str, 
-        azure_endpoint: str, 
-        model: str, 
+        self,
+        api_key: str,
+        azure_endpoint: str,
+        model: str,
         api_version: str = "2023-05-15",
-        **kwargs
+        **kwargs,
     ):
         """
         Initialize Azure OpenAI client.
@@ -27,7 +30,7 @@ class AzureOpenAILLM(BaseLLM):
             api_key=api_key,
             azure_endpoint=azure_endpoint,
             api_version=api_version,
-            **kwargs
+            **kwargs,
         )
         self.model = model
 
@@ -37,11 +40,9 @@ class AzureOpenAILLM(BaseLLM):
         """
         try:
             params = {k: v for k, v in kwargs.items() if v is not None}
-            
+
             response = self.client.chat.completions.create(
-                model=self.model,
-                messages=messages, # type: ignore
-                **params
+                model=self.model, messages=messages, **params  # type: ignore
             )
             return response.choices[0].message.content or ""
         except openai.APIError as e:

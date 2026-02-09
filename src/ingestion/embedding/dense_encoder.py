@@ -13,7 +13,9 @@ class DenseEncoder:
         self._settings = settings
         self._embedding = embedding or EmbeddingFactory.create(settings)
 
-    def encode(self, chunks: List[Chunk], trace: Optional[Any] = None) -> List[List[float]]:
+    def encode(
+        self, chunks: List[Chunk], trace: Optional[Any] = None
+    ) -> List[List[float]]:
         if not chunks:
             return []
 
@@ -26,7 +28,9 @@ class DenseEncoder:
         self._validate(chunks, vectors)
         return vectors
 
-    async def aencode(self, chunks: List[Chunk], trace: Optional[Any] = None) -> List[List[float]]:
+    async def aencode(
+        self, chunks: List[Chunk], trace: Optional[Any] = None
+    ) -> List[List[float]]:
         if not chunks:
             return []
 

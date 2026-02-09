@@ -1,8 +1,9 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional, Any
+from typing import Any, List, Optional
 
 # Placeholder for TraceContext until Observability module is fully implemented
 TraceContext = Any
+
 
 class BaseSplitter(ABC):
     """
@@ -11,7 +12,9 @@ class BaseSplitter(ABC):
     """
 
     @abstractmethod
-    def split_text(self, text: str, trace: Optional[TraceContext] = None, **kwargs: Any) -> List[str]:
+    def split_text(
+        self, text: str, trace: Optional[TraceContext] = None, **kwargs: Any
+    ) -> List[str]:
         """
         Split text into chunks.
 
