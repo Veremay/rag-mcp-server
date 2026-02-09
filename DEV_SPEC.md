@@ -1701,7 +1701,7 @@ observability:
 |---------|---------|------|---------|------|
 | E1 | MCP Server 骨架（Stdio Transport） | [x] | 2026-02-06 | |
 | E2 | Protocol Handler 协议解析与能力协商 | [x] | 2026-02-09 | |
-| E3 | query_knowledge_hub Tool | [ ] | - | |
+| E3 | query_knowledge_hub Tool | [x] | 2026-02-09 | |
 | E4 | list_collections Tool | [ ] | - | |
 | E5 | get_document_summary Tool | [ ] | - | |
 | E6 | 多模态返回（Text + Image） | [ ] | - | |
@@ -1735,10 +1735,10 @@ observability:
 | 阶段 B | 14 | 14 | 100% |
 | 阶段 C | 15 | 15 | 100% |
 | 阶段 D | 7 | 7 | 100% |
-| 阶段 E | 6 | 2 | 33% |
+| 阶段 E | 6 | 3 | 50% |
 | 阶段 F | 5 | 0 | 0% |
 | 阶段 G | 4 | 0 | 0% |
-| **总计** | **54** | **41** | **76%** |
+| **总计** | **54** | **42** | **78%** |
 
 
 ---
@@ -2224,7 +2224,7 @@ observability:
   - **错误处理**：无效方法返回 -32601，参数错误返回 -32602，内部异常返回 -32603 且不泄露堆栈
 - **测试方法**：`pytest -q tests/unit/test_protocol_handler.py`。
 
-### E3：实现 tool：query_knowledge_hub
+### E3：实现 tool：query_knowledge_hub ✅
 - **目标**：实现 `tools/query_knowledge_hub.py`：调用 HybridSearch + Reranker，构建带引用的响应，返回 Markdown + structured citations。
 - **前置依赖**：D5（HybridSearch）、D6（Reranker）、E1（Server）、E2（Protocol Handler）
 - **修改文件**：
