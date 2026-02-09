@@ -1,13 +1,16 @@
-import pytest
-from pathlib import Path
-import tempfile
 import os
+import tempfile
+from pathlib import Path
+
+import pytest
+
+from src.ingestion.models import Document
 from src.libs.loader.base_loader import BaseLoader
 from src.libs.loader.pdf_loader import PdfLoader
-from src.ingestion.models import Document
+
 
 class TestPdfLoader:
-    
+
     @pytest.fixture
     def sample_pdf(self):
         """Create a dummy PDF file for testing."""
@@ -27,7 +30,7 @@ class TestPdfLoader:
         """Verify load returns a Document with correct metadata."""
         loader = PdfLoader()
         doc = loader.load(sample_pdf)
-        
+
         assert isinstance(doc, Document)
         assert doc.metadata["source_path"] == str(sample_pdf.absolute())
         assert doc.metadata["filename"] == sample_pdf.name

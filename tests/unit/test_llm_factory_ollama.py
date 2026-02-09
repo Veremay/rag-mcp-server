@@ -1,21 +1,21 @@
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
+
+from src.core.settings import LLMSettings, Settings
 from src.libs.llm.llm_factory import LLMFactory
 from src.libs.llm.ollama_llm import OllamaLLM
-from src.core.settings import Settings, LLMSettings
+
 
 class TestLLMFactoryOllama:
-    
+
     def test_create_ollama_default(self):
         """Test creating Ollama LLM with minimal settings."""
         settings = MagicMock(spec=Settings)
-        settings.llm = LLMSettings(
-            provider="ollama",
-            model="llama3"
-        )
-        
+        settings.llm = LLMSettings(provider="ollama", model="llama3")
+
         llm = LLMFactory.create(settings)
-        
+
         assert isinstance(llm, OllamaLLM)
         assert llm.model == "llama3"
         # Check defaults - OpenAI client usually normalizes URL
@@ -29,11 +29,11 @@ class TestLLMFactoryOllama:
             provider="ollama",
             model="mistral",
             base_url="http://custom:1234/v1",
-            api_key="secret"
+            api_key="secret",
         )
-        
+
         llm = LLMFactory.create(settings)
-        
+
         assert isinstance(llm, OllamaLLM)
         assert llm.model == "mistral"
         assert "custom:1234" in str(llm.client.base_url)
