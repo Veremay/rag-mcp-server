@@ -6,6 +6,10 @@ import sys
 from typing import Any, Dict
 
 from src.mcp_server.protocol_handler import ProtocolHandler, ToolSchema
+from src.mcp_server.tools.get_document_summary import (
+    GetDocumentSummaryParams,
+    get_document_summary,
+)
 from src.mcp_server.tools.list_collections import list_collections
 from src.mcp_server.tools.query_knowledge_hub import (
     QueryKnowledgeHubParams,
@@ -56,6 +60,18 @@ def run_stdio_server() -> int:
         ),
         handler=_handle_list_collections,
     )
+    handler.register_tool(
+        ToolSchema(
+            name="get_document_summary",
+            description="按 doc_id 返回文档的 title/summary/tags",
+            input_schema={
+                "type": "object",
+                "properties": {"doc_id": {"type": "string"}},
+                "required": ["doc_id"],
+            },
+        ),
+        handler=_handle_get_document_summary,
+    )
 
     for line in sys.stdin:
         raw = line.strip()
@@ -102,6 +118,13 @@ def _handle_query_knowledge_hub(args: Dict[str, Any]) -> Dict[str, Any]:
 def _handle_list_collections(args: Dict[str, Any]) -> Dict[str, Any]:
     _ = args
     return list_collections()
+
+
+def _handle_get_document_summary(args: Dict[str, Any]) -> Dict[str, Any]:
+    doc_id = args.get("doc_id")
+    if not isinstance(doc_id, str):
+        raise ValueError("doc_id must be a string")
+    return get_document_summary(GetDocumentSummaryParams(doc_id=doc_id))
 
 
 def main() -> int:
