@@ -6,6 +6,7 @@ import sys
 from typing import Any, Dict
 
 from src.mcp_server.protocol_handler import ProtocolHandler, ToolSchema
+from src.mcp_server.tools.list_collections import list_collections
 from src.mcp_server.tools.query_knowledge_hub import (
     QueryKnowledgeHubParams,
     query_knowledge_hub,
@@ -46,6 +47,14 @@ def run_stdio_server() -> int:
             },
         ),
         handler=_handle_query_knowledge_hub,
+    )
+    handler.register_tool(
+        ToolSchema(
+            name="list_collections",
+            description="列出 data/documents/ 下的集合目录并返回基础统计",
+            input_schema={"type": "object", "properties": {}},
+        ),
+        handler=_handle_list_collections,
     )
 
     for line in sys.stdin:
@@ -88,6 +97,11 @@ def _handle_query_knowledge_hub(args: Dict[str, Any]) -> Dict[str, Any]:
     return query_knowledge_hub(
         QueryKnowledgeHubParams(query=query, top_k=top_k, collection=collection)
     )
+
+
+def _handle_list_collections(args: Dict[str, Any]) -> Dict[str, Any]:
+    _ = args
+    return list_collections()
 
 
 def main() -> int:

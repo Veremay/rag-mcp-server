@@ -1702,7 +1702,7 @@ observability:
 | E1 | MCP Server 骨架（Stdio Transport） | [x] | 2026-02-06 | |
 | E2 | Protocol Handler 协议解析与能力协商 | [x] | 2026-02-09 | |
 | E3 | query_knowledge_hub Tool | [x] | 2026-02-09 | |
-| E4 | list_collections Tool | [ ] | - | |
+| E4 | list_collections Tool | [x] | 2026-02-09 | |
 | E5 | get_document_summary Tool | [ ] | - | |
 | E6 | 多模态返回（Text + Image） | [ ] | - | |
 
@@ -1735,10 +1735,10 @@ observability:
 | 阶段 B | 14 | 14 | 100% |
 | 阶段 C | 15 | 15 | 100% |
 | 阶段 D | 7 | 7 | 100% |
-| 阶段 E | 6 | 3 | 50% |
+| 阶段 E | 6 | 4 | 67% |
 | 阶段 F | 5 | 0 | 0% |
 | 阶段 G | 4 | 0 | 0% |
-| **总计** | **54** | **42** | **78%** |
+| **总计** | **54** | **43** | **80%** |
 
 
 ---
