@@ -5,7 +5,11 @@ import logging
 import sys
 from typing import Any, Dict
 
-from src.mcp_server.protocol_handler import ProtocolHandler
+from src.mcp_server.protocol_handler import ProtocolHandler, ToolSchema
+from src.mcp_server.tools.query_knowledge_hub import (
+    QueryKnowledgeHubParams,
+    query_knowledge_hub,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +31,22 @@ def run_stdio_server() -> int:
     _setup_logging()
     logger.info("MCP stdio server started")
     handler = ProtocolHandler()
+    handler.register_tool(
+        ToolSchema(
+            name="query_knowledge_hub",
+            description="主检索入口：混合检索 + Rerank，返回带引用的结果",
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string"},
+                    "top_k": {"type": "integer", "minimum": 1},
+                    "collection": {"type": "string"},
+                },
+                "required": ["query"],
+            },
+        ),
+        handler=_handle_query_knowledge_hub,
+    )
 
     for line in sys.stdin:
         raw = line.strip()
@@ -50,6 +70,24 @@ def run_stdio_server() -> int:
 
     logger.info("MCP stdio server stopped")
     return 0
+
+
+def _handle_query_knowledge_hub(args: Dict[str, Any]) -> Dict[str, Any]:
+    query = args.get("query")
+    if not isinstance(query, str):
+        raise ValueError("query must be a string")
+
+    top_k = args.get("top_k")
+    if top_k is not None and not isinstance(top_k, int):
+        raise ValueError("top_k must be an integer")
+
+    collection = args.get("collection")
+    if collection is not None and not isinstance(collection, str):
+        raise ValueError("collection must be a string")
+
+    return query_knowledge_hub(
+        QueryKnowledgeHubParams(query=query, top_k=top_k, collection=collection)
+    )
 
 
 def main() -> int:
