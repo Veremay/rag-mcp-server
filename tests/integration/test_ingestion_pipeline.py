@@ -39,7 +39,10 @@ class FakeSplitter(BaseSplitter):
     ) -> List[str]:
         if not text:
             return []
-        return [text[i : i + self._chunk_size] for i in range(0, len(text), self._chunk_size)]
+        return [
+            text[i : i + self._chunk_size]
+            for i in range(0, len(text), self._chunk_size)
+        ]
 
 
 class FakeDenseEncoder:
@@ -103,8 +106,10 @@ def test_ingestion_pipeline_roundtrip_and_incremental_skip(tmp_path: Path) -> No
         assert r1.skipped is False
         assert r1.document is not None
         assert len(r1.chunks) > 0
+        assert all(c.metadata.get("collection") == "c14" for c in r1.chunks)
         assert r1.upsert is not None
         assert len(store.store) == len(r1.upsert.records)
+        assert all(r.metadata.get("collection") == "c14" for r in r1.upsert.records)
 
         meta_path = tmp_path / "bm25" / "c14" / "meta.json"
         postings_path = tmp_path / "bm25" / "c14" / "postings.json"
