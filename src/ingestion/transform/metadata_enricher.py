@@ -97,7 +97,10 @@ class MetadataEnricher(BaseTransform):
 
     def _llm_enrich(self, text: str) -> Dict[str, Any]:
         prompt = self._prompt_template.format(text=(text or "").strip())
-        response = self._llm.chat([{"role": "user", "content": prompt}])
+        llm = self._llm
+        if llm is None:
+            raise RuntimeError("LLM is not initialized")
+        response = llm.chat([{"role": "user", "content": prompt}])
         payload = self._parse_llm_json(response)
 
         title = payload.get("title")

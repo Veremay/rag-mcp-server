@@ -4,12 +4,13 @@ from typing import Any, List, Optional
 
 from src.libs.splitter.base_splitter import BaseSplitter, TraceContext
 
+_LCRecursiveSplitter: Any
 try:
     from langchain_text_splitters import (
-        RecursiveCharacterTextSplitter as LCRecursiveSplitter,
+        RecursiveCharacterTextSplitter as _LCRecursiveSplitter,
     )
 except ModuleNotFoundError:
-    LCRecursiveSplitter = None
+    _LCRecursiveSplitter = None
 
 
 class RecursiveSplitter(BaseSplitter):
@@ -18,8 +19,8 @@ class RecursiveSplitter(BaseSplitter):
         self.chunk_size = splitter_config.chunk_size
         self.chunk_overlap = splitter_config.chunk_overlap
         self._splitter = None
-        if LCRecursiveSplitter is not None:
-            self._splitter = LCRecursiveSplitter(
+        if _LCRecursiveSplitter is not None:
+            self._splitter = _LCRecursiveSplitter(
                 chunk_size=self.chunk_size,
                 chunk_overlap=self.chunk_overlap,
                 length_function=len,

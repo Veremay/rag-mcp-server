@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 from src.core.settings import Settings
 from src.libs.vector_store.base_vector_store import BaseVectorStore, VectorRecord
@@ -56,7 +56,10 @@ class ChromaStore(BaseVectorStore):
 
         # Upsert handles both insert and update
         self.collection.upsert(
-            ids=ids, embeddings=embeddings, documents=documents, metadatas=metadatas
+            ids=ids,
+            embeddings=cast(Any, embeddings),
+            documents=documents,
+            metadatas=cast(Any, metadatas),
         )
 
     def query(
@@ -79,11 +82,14 @@ class ChromaStore(BaseVectorStore):
             List of VectorRecord objects ordered by similarity.
         """
         effective_filters = filters or None
-        results = self.collection.query(
-            query_embeddings=[vector],
-            n_results=top_k,
-            where=effective_filters,
-            include=["embeddings", "documents", "metadatas", "distances"],
+        results = cast(
+            Any,
+            self.collection.query(
+                query_embeddings=cast(Any, [vector]),
+                n_results=top_k,
+                where=effective_filters,
+                include=["embeddings", "documents", "metadatas", "distances"],
+            ),
         )
 
         # Chroma returns lists of lists (one list per query embedding)
@@ -99,12 +105,16 @@ class ChromaStore(BaseVectorStore):
 
         records: List[VectorRecord] = []
         for i in range(len(ids)):
+            raw_metadata = metadatas[i] if metadatas[i] else {}
+            metadata: Dict[str, Any] = (
+                dict(raw_metadata) if isinstance(raw_metadata, dict) else {}
+            )
             records.append(
                 VectorRecord(
                     id=ids[i],
                     embedding=list(embeddings[i]),
                     content=documents[i],
-                    metadata=metadatas[i] if metadatas[i] else {},
+                    metadata=metadata,
                 )
             )
 
