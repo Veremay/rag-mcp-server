@@ -1704,7 +1704,7 @@ observability:
 | E3 | query_knowledge_hub Tool | [x] | 2026-02-09 | |
 | E4 | list_collections Tool | [x] | 2026-02-09 | |
 | E5 | get_document_summary Tool | [x] | 2026-02-09 | |
-| E6 | 多模态返回（Text + Image） | [ ] | - | |
+| E6 | 多模态返回（Text + Image） | [x] | 2026-02-09 | |
 
 #### 阶段 F：Observability + Evaluation
 
@@ -1735,10 +1735,10 @@ observability:
 | 阶段 B | 14 | 14 | 100% |
 | 阶段 C | 15 | 15 | 100% |
 | 阶段 D | 7 | 7 | 100% |
-| 阶段 E | 6 | 5 | 83% |
+| 阶段 E | 6 | 6 | 100% |
 | 阶段 F | 5 | 0 | 0% |
 | 阶段 G | 4 | 0 | 0% |
-| **总计** | **54** | **44** | **81%** |
+| **总计** | **54** | **45** | **83%** |
 
 
 ---
@@ -2243,7 +2243,7 @@ observability:
   - 无结果时返回友好提示而非空数组
 - **测试方法**：`pytest -q tests/integration/test_mcp_server.py -k query_knowledge_hub`。
 
-### E4：实现 tool：list_collections
+### E4：实现 tool：list_collections ✅
 - **目标**：实现 `tools/list_collections.py`：列出 `data/documents/` 下集合并附带统计（可延后到下一步）。
 - **修改文件**：
   - `src/mcp_server/tools/list_collections.py`
@@ -2251,7 +2251,7 @@ observability:
 - **验收标准**：对 fixtures 中的目录结构能返回集合名列表。
 - **测试方法**：`pytest -q tests/unit/test_list_collections.py`。
 
-### E5：实现 tool：get_document_summary
+### E5：实现 tool：get_document_summary ✅
 - **目标**：实现 `tools/get_document_summary.py`：按 doc_id 返回 title/summary/tags（可先从 metadata/缓存取）。
 - **修改文件**：
   - `src/mcp_server/tools/get_document_summary.py`
@@ -2259,7 +2259,7 @@ observability:
 - **验收标准**：对不存在 doc_id 返回规范错误；存在时返回结构化信息。
 - **测试方法**：`pytest -q tests/unit/test_get_document_summary.py`。
 
-### E6：多模态返回组装（Text + Image）
+### E6：多模态返回组装（Text + Image） ✅
 - **目标**：实现 `multimodal_assembler.py`：命中 chunk 含 image_refs 时读取图片并 base64 返回 ImageContent。
 - **修改文件**：
   - `src/core/response/multimodal_assembler.py`
