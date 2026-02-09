@@ -34,8 +34,9 @@ from unittest.mock import MagicMock, patch
 
 # ... (existing imports)
 
-def test_factory_creates_chroma(mock_settings):
+def test_factory_creates_chroma(mock_settings, monkeypatch):
     """Test that factory creates ChromaStore when backend is chroma."""
+    monkeypatch.setenv("FORCE_CHROMA", "1")
     mock_settings.vector_store.backend = "chroma"
     mock_settings.vector_store.persist_path = "/tmp/test_chroma"
     mock_settings.vector_store.collection_name = "test"

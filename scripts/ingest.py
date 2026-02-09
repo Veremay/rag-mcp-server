@@ -56,6 +56,20 @@ def main(argv: list[str] | None = None) -> int:
         print(f"SKIPPED\t{args.path}")
         return 0
 
+    if len(result.chunks) == 0:
+        print(
+            "WARN: 文档未抽取到可切分的文本，因此 chunks=0。",
+            file=sys.stderr,
+        )
+        print(
+            "      常见原因：PDF 为扫描件/图片型；或 PDF 加密/字体编码导致 pypdf 抽取失败。",
+            file=sys.stderr,
+        )
+        print(
+            "      建议：先对 PDF 做 OCR（生成文本层）后再运行 ingest.py；或更换为可搜索 PDF。",
+            file=sys.stderr,
+        )
+
     print(f"INGESTED\t{args.path}\tchunks={len(result.chunks)}")
     return 0
 
