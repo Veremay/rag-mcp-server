@@ -22,7 +22,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--query", required=True)
     parser.add_argument("--top-k", type=int, default=None)
     parser.add_argument("--collection", default=None)
-    parser.add_argument("--verbose", action="store_true")
+    parser.add_argument("--verbose", action="store_true", help="Print detailed RAG pipeline steps")
     parser.add_argument("--no-rerank", action="store_true")
     parser.add_argument("--config", default="config/settings.yaml")
     return parser.parse_args(argv)
@@ -32,7 +32,7 @@ def _module_available(module_name: str) -> bool:
     return importlib.util.find_spec(module_name) is not None
 
 
-def _format_snippet(text: str, *, max_len: int = 160) -> str:
+def _format_snippet(text: str, *, max_len: int = 120) -> str:
     compact = " ".join((text or "").split())
     if len(compact) <= max_len:
         return compact
@@ -50,65 +50,22 @@ def _extract_page(metadata: Dict[str, Any]) -> Optional[str]:
     return None
 
 
-def _print_stage(title: str) -> None:
-    print()
-    print(f"== {title} ==")
+def _print_stage(emoji: str, title: str) -> None:
+    print(f"\n{emoji}  {title}")
 
 
 def _print_ranked_items(items: List[Dict[str, Any]], *, top_k: int) -> None:
     for i, it in enumerate(items[:top_k], start=1):
         score = it.get("score")
-        score_str = f"{float(score):.6f}" if isinstance(score, (int, float)) else "-"
+        score_str = f"{float(score):.4f}" if isinstance(score, (int, float)) else "-"
         metadata = it.get("metadata")
         metadata_dict = metadata if isinstance(metadata, dict) else {}
-        source = str(
-            metadata_dict.get("source_path", "")
-            or metadata_dict.get("source", "")
-            or "-"
-        )
+        source = Path(str(metadata_dict.get("source_path") or metadata_dict.get("source") or "-")).name
         page = _extract_page(metadata_dict) or "-"
         text = str(it.get("text", "") or "")
         print(
-            f"[{i:02d}] score={score_str} source={source} page={page} id={it.get('chunk_id','-')}\n"
-            f"     {_format_snippet(text)}"
-        )
-
-
-def _print_dense_hits(hits: List[Any]) -> None:
-    for i, h in enumerate(hits, start=1):
-        record = getattr(h, "record", None)
-        if record is None:
-            continue
-        chunk_id = getattr(record, "id", "-")
-        metadata = getattr(record, "metadata", {}) or {}
-        source = str(metadata.get("source_path", "") or "-")
-        page = _extract_page(metadata) or "-"
-        score = getattr(h, "score", None)
-        score_str = f"{float(score):.6f}" if isinstance(score, (int, float)) else "-"
-        content = getattr(record, "content", "") or ""
-        print(
-            f"[{i:02d}] score={score_str} source={source} page={page} id={chunk_id}\n"
-            f"     {_format_snippet(str(content))}"
-        )
-
-
-def _print_sparse_hits(hits: List[Any]) -> None:
-    for i, h in enumerate(hits, start=1):
-        chunk_id = getattr(h, "chunk_id", "-")
-        score = getattr(h, "score", None)
-        score_str = f"{float(score):.6f}" if isinstance(score, (int, float)) else "-"
-        print(f"[{i:02d}] score={score_str} id={chunk_id}")
-
-
-def _print_fusion_hits(hits: List[Any]) -> None:
-    for i, h in enumerate(hits, start=1):
-        chunk_id = getattr(h, "chunk_id", "-")
-        score = getattr(h, "score", None)
-        score_str = f"{float(score):.6f}" if isinstance(score, (int, float)) else "-"
-        dense_rank = getattr(h, "dense_rank", None)
-        sparse_rank = getattr(h, "sparse_rank", None)
-        print(
-            f"[{i:02d}] score={score_str} id={chunk_id} dense_rank={dense_rank} sparse_rank={sparse_rank}"
+            f"  [{i:02d}] 🏆 {score_str} | 📄 {source} (p.{page}) | ID: {it.get('chunk_id','-')[:8]}...\n"
+            f"       {_format_snippet(text)}"
         )
 
 
@@ -156,169 +113,107 @@ def main(argv: list[str] | None = None) -> int:
         _print_exception_chain(e)
         return 1
 
-    if str(settings.vector_store.backend).lower() == "chroma" and not _module_available(
-        "chromadb"
-    ):
-        print(
-            "ERROR: 当前配置 vector_store.backend=chroma，但环境中未安装 chromadb。",
-            file=sys.stderr,
-        )
-        print(
-            "  解决方案 1：安装依赖：pip install chromadb",
-            file=sys.stderr,
-        )
-        print(
-            "  解决方案 2：将 config/settings.yaml 中 vector_store.backend 改为 jsonl",
-            file=sys.stderr,
-        )
+    # 1. Check Environment
+    if str(settings.vector_store.backend).lower() == "chroma" and not _module_available("chromadb"):
+        print("ERROR: chromadb not installed.", file=sys.stderr)
         return 1
 
-    if (
-        str(settings.embedding.provider).lower() == "openai"
-        and not settings.embedding.api_key
-    ):
-        print(
-            "ERROR: 当前配置 embedding.provider=openai，但未配置 embedding.api_key。",
-            file=sys.stderr,
-        )
-        print(
-            "  解决方案 1：在 config/settings.yaml 配置 embedding.api_key",
-            file=sys.stderr,
-        )
-        print(
-            "  解决方案 2：将 config/settings.yaml 中 embedding.provider 改为 local",
-            file=sys.stderr,
-        )
-        return 1
-
+    # 2. Process Query
+    if args.verbose:
+        _print_stage("🔍", f"Processing Query: '{query}'")
+    
+    qp = QueryProcessor()
     effective_query = query
     if args.collection and "collection:" not in effective_query:
         effective_query = f"collection:{args.collection} {effective_query}".strip()
+    
+    processed = qp.process(effective_query)
+    filters = dict(processed.filters or {})
+    if args.collection:
+        filters.setdefault("collection", str(args.collection))
+    
+    if args.verbose:
+        print(f"   - Keywords: {processed.keywords}")
+        print(f"   - Filters: {filters}")
 
     try:
-        qp = QueryProcessor()
-        processed = qp.process(effective_query)
-        filters = dict(processed.filters or {})
-        if args.collection:
-            filters.setdefault("collection", str(args.collection))
-
         dense = DenseRetriever(settings)
         sparse = SparseRetriever(settings)
         fusion = RRFFusion()
 
         dense_top_k = int(settings.retrieval.top_k_dense)
         sparse_top_k = int(settings.retrieval.top_k_sparse)
-        final_top_k = (
-            int(args.top_k)
-            if args.top_k is not None
-            else int(settings.retrieval.top_k_final)
-        )
+        final_top_k = int(args.top_k) if args.top_k is not None else int(settings.retrieval.top_k_final)
 
         sparse_query = " ".join(processed.keywords).strip() or effective_query
 
-        try:
-            dense_hits = dense.retrieve(
-                effective_query,
-                filters=filters,
-                top_k=dense_top_k if dense_top_k > 0 else None,
-            )
-        except RuntimeError as e:
-            msg = str(e)
-            if str(settings.embedding.provider).lower() == "openai" and (
-                "Failed to connect to OpenAI Embedding API" in msg
-                or "Request timed out" in msg
-                or "timed out" in msg
-            ):
-                print(
-                    "WARN: OpenAI Embedding 调用失败（疑似超时/网络问题），已自动回退到 local embedding（fake vectors）。",
-                    file=sys.stderr,
-                )
-                print(
-                    "      注意：该回退仅用于本地调试链路可用性，相关性可能明显下降。",
-                    file=sys.stderr,
-                )
-                from src.libs.embedding.local_embedding import LocalEmbedding
+        # 3. Dense Retrieval
+        if args.verbose:
+            _print_stage("🧠", "Dense Retrieval (Vector Search)")
+        dense_hits = dense.retrieve(effective_query, filters=filters, top_k=dense_top_k)
+        if args.verbose:
+            max_score = f"{dense_hits[0].score:.4f}" if dense_hits else "N/A"
+            print(f"   - Found {len(dense_hits)} candidates. Max score: {max_score}")
 
-                dense = DenseRetriever(
-                    settings,
-                    embedding=LocalEmbedding(
-                        model=settings.embedding.model or "text-embedding-3-small",
-                        dimension=1536,
-                    ),
-                    vector_store=getattr(dense, "_vector_store", None),
-                )
-                dense_hits = dense.retrieve(
-                    effective_query,
-                    filters=filters,
-                    top_k=dense_top_k if dense_top_k > 0 else None,
-                )
-            else:
-                raise
+        # 4. Sparse Retrieval
+        if args.verbose:
+            _print_stage("🔡", "Sparse Retrieval (Keyword Search)")
         sparse_hits = sparse.retrieve(
-            sparse_query,
-            filters=filters,
-            top_k=sparse_top_k if sparse_top_k > 0 else None,
-            collection=str(args.collection) if args.collection else None,
+            sparse_query, 
+            filters=filters, 
+            top_k=sparse_top_k,
+            collection=str(args.collection) if args.collection else None
         )
+        if args.verbose:
+            print(f"   - Found {len(sparse_hits)} candidates.")
 
+        # 5. Fusion
+        if args.verbose:
+            _print_stage("🔀", "RRF Fusion (Hybrid Search)")
         need_candidates = final_top_k
         if not args.no_rerank:
-            need_candidates = max(
-                need_candidates, int(getattr(settings.rerank, "top_m", need_candidates))
-            )
-
+            need_candidates = max(need_candidates, int(getattr(settings.rerank, "top_m", need_candidates)))
+        
         fused_hits = fusion.fuse(dense_hits, sparse_hits, top_k=need_candidates)
+        if args.verbose:
+            print(f"   - Combined into {len(fused_hits)} candidates.")
 
-        dense_by_id = {
-            h.record.id: h.record
-            for h in dense_hits
-            if getattr(h, "record", None) is not None
-        }
+        # Hydrate
+        dense_by_id = {h.record.id: h.record for h in dense_hits if getattr(h, "record", None)}
         hydrated: List[Dict[str, Any]] = []
         for fh in fused_hits:
             chunk_id = getattr(fh, "chunk_id", None)
-            if not isinstance(chunk_id, str):
-                continue
-            record = dense_by_id.get(
-                chunk_id
-            ) or _resolve_record_from_dense_vector_store(dense, chunk_id)
-            if record is None:
-                continue
-            item = {
-                "chunk_id": chunk_id,
-                "text": record.content,
-                "metadata": dict(record.metadata or {}),
-                "score": float(getattr(fh, "score", 0.0)),
-            }
-            hydrated.append(item)
-
-        if args.verbose:
-            _print_stage("Dense")
-            _print_dense_hits(dense_hits)
-            _print_stage("Sparse")
-            _print_sparse_hits(sparse_hits)
-            _print_stage("Fusion")
-            _print_fusion_hits(fused_hits)
+            if not isinstance(chunk_id, str): continue
+            record = dense_by_id.get(chunk_id) or _resolve_record_from_dense_vector_store(dense, chunk_id)
+            if record:
+                hydrated.append({
+                    "chunk_id": chunk_id,
+                    "text": record.content,
+                    "metadata": dict(record.metadata or {}),
+                    "score": float(getattr(fh, "score", 0.0)),
+                })
 
         if not hydrated:
-            print("未找到相关文档，请先运行 ingest.py 摄取数据。")
+            print("❌  未找到相关文档，请先运行 ingest.py 摄取数据。")
             return 0
 
-        if args.no_rerank:
-            final_items = hydrated[:final_top_k]
-            rerank_fallback = True
-        else:
+        # 6. Rerank
+        final_items = hydrated
+        rerank_fallback = False
+        if not args.no_rerank:
+            if args.verbose:
+                _print_stage("⚖️ ", "Reranking (Cross-Encoder)")
             reranker = Reranker(settings)
-            rerank_result = reranker.rerank(effective_query, hydrated, timeout_s=5.0)
-            final_items = list(rerank_result.items or [])[:final_top_k]
+            rerank_result = reranker.rerank(effective_query, hydrated, timeout_s=10.0)
+            final_items = list(rerank_result.items or [])
             rerank_fallback = bool(rerank_result.fallback)
+            if args.verbose:
+                status = "⚠️  Fallback used" if rerank_fallback else "✅  Success"
+                print(f"   - Status: {status}")
 
-        if args.verbose:
-            _print_stage(f"Rerank (fallback={str(rerank_fallback).lower()})")
-            _print_ranked_items(final_items, top_k=final_top_k)
-
-        if not args.verbose:
-            _print_ranked_items(final_items, top_k=final_top_k)
+        # 7. Final Results
+        _print_stage("🎯", f"Top {final_top_k} Results:")
+        _print_ranked_items(final_items, top_k=final_top_k)
 
         return 0
     except Exception as e:

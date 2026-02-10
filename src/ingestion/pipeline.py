@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, List, Optional, Sequence
+from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from src.core.settings import Settings
 from src.ingestion.embedding.batch_processor import BatchProcessor, BatchProcessResult
@@ -83,8 +83,12 @@ class IngestionPipeline:
         file_path: str | Path,
         force: bool = False,
         trace: Optional[Any] = None,
+        on_progress: Optional[Callable[[str, Dict[str, Any]], None]] = None,
     ) -> IngestResult:
         path = Path(file_path)
+
+        if on_progress:
+            on_progress("start", {"path": str(path)})
 
         try:
             file_hash = self._integrity.compute_sha256(path)
@@ -92,6 +96,8 @@ class IngestionPipeline:
             raise RuntimeError("IngestionPipeline integrity step failed") from e
 
         if not force and self._integrity.should_skip(file_hash):
+            if on_progress:
+                on_progress("skipped", {"hash": file_hash})
             return IngestResult(
                 skipped=True,
                 file_hash=file_hash,
@@ -102,9 +108,14 @@ class IngestionPipeline:
                 bm25=None,
             )
 
+        if on_progress:
+            on_progress("hash_calculated", {"hash": file_hash})
+
         try:
             loader = self._resolve_loader(path)
             document = loader.load(path)
+            if on_progress:
+                on_progress("loaded", {"document": document})
         except Exception as e:
             raise RuntimeError("IngestionPipeline loader step failed") from e
 
@@ -115,21 +126,29 @@ class IngestionPipeline:
                 meta = c.metadata
                 if isinstance(meta, dict):
                     meta.setdefault("collection", str(collection))
+            if on_progress:
+                on_progress("split", {"chunks": chunks})
         except Exception as e:
             raise RuntimeError("IngestionPipeline splitter step failed") from e
 
         try:
             chunks = self._apply_transforms(chunks, trace=trace)
+            if on_progress:
+                on_progress("transformed", {"chunks": chunks})
         except Exception as e:
             raise RuntimeError("IngestionPipeline transform step failed") from e
 
         try:
             batch = self._encode(chunks, trace=trace)
+            if on_progress:
+                on_progress("encoded", {"batch": batch})
         except Exception as e:
             raise RuntimeError("IngestionPipeline embedding step failed") from e
 
         try:
             upsert = self._upsert(chunks, batch.dense_vectors, trace=trace)
+            if on_progress:
+                on_progress("upserted", {"upsert": upsert})
         except Exception as e:
             raise RuntimeError("IngestionPipeline vector upsert step failed") from e
 
@@ -140,6 +159,8 @@ class IngestionPipeline:
                 chunk_ids=chunk_ids,
                 sparse_vectors=batch.sparse_vectors,
             )
+            if on_progress:
+                on_progress("bm25_built", {})
         except Exception as e:
             raise RuntimeError("IngestionPipeline bm25 step failed") from e
 
@@ -150,6 +171,8 @@ class IngestionPipeline:
 
         try:
             self._integrity.mark_success(file_hash)
+            if on_progress:
+                on_progress("complete", {})
         except Exception as e:
             raise RuntimeError("IngestionPipeline finalize step failed") from e
 
