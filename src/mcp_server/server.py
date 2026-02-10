@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sys
+from pathlib import Path
 from typing import Any, Dict
 
 from src.mcp_server.protocol_handler import ProtocolHandler, ToolSchema
@@ -32,8 +34,18 @@ def _write_stdout_message(payload: Dict[str, Any]) -> None:
     sys.stdout.flush()
 
 
+def _ensure_project_root() -> None:
+    """Ensure the current working directory is the project root."""
+    # src/mcp_server/server.py -> parents[2] is project root
+    root = Path(__file__).resolve().parents[2]
+    if os.getcwd() != str(root):
+        os.chdir(root)
+        logger.info("Changed working directory to project root: %s", root)
+
+
 def run_stdio_server() -> int:
     _setup_logging()
+    _ensure_project_root()
     logger.info("MCP stdio server started")
     handler = ProtocolHandler()
     handler.register_tool(
