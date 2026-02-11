@@ -1724,7 +1724,7 @@ observability:
 | G2 | DocumentManager 实现 | [x] | 2026-02-11 | |
 | G3 | 数据浏览器页面 | [x] | 2026-02-11 | |
 | G4 | Ingestion 管理页面 | [ ] | - | |
-| G5 | Ingestion 追踪页面 | [ ] | - | |
+| G5 | Ingestion 追踪页面 | [x] | 2026-02-11 | |
 | G6 | Query 追踪页面 | [ ] | - | |
 
 #### 阶段 H：可插拔评估体系
@@ -2387,7 +2387,7 @@ observability:
 - **验收标准**：`streamlit run src/observability/dashboard/app.py` 可启动，总览页展示当前配置信息。
 - **测试方法**：手动运行 `python scripts/start_dashboard.py` 并验证页面渲染。
 
-### G2：DocumentManager 实现 
+### G2：DocumentManager 实现 ✅
 - **目标**：实现 `src/ingestion/document_manager.py`：跨存储的文档生命周期管理（list/delete/stats）。
 - **前置依赖**：C5（Pipeline + 各存储模块已就绪）
 - **修改文件**：
@@ -2408,7 +2408,7 @@ observability:
   - 删除后再次 list 不包含已删除文档
 - **测试方法**：`pytest -q tests/unit/test_document_manager.py`。
 
-### G3：数据浏览器页面
+### G3：数据浏览器页面 ✅
 - **目标**：实现 Dashboard 数据浏览器页面（查看文档列表、Chunk 详情、图片预览）。
 - **前置依赖**：G1（Dashboard 架构）、G2（DocumentManager）
 - **修改文件**：
