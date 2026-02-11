@@ -2512,7 +2512,7 @@ observability:
 - **验收标准**：`python scripts/evaluate.py` 可运行，输出 metrics。
 - **测试方法**：`pytest -q tests/integration/test_hybrid_search.py` 或 `python scripts/evaluate.py`。
 
-### H4：评估面板页面
+### H4：评估面板页面 ✅
 - **目标**：实现 Dashboard 评估面板页面（运行评估、查看指标、历史对比）。
 - **前置依赖**：H3（EvalRunner）、G1（Dashboard 架构）
 - **修改文件**：
