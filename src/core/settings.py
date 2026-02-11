@@ -80,6 +80,7 @@ class RerankSettings:
 class EvaluationSettings:
     backends: List[str]
     golden_test_set: str
+    metrics: List[str] = field(default_factory=list)
 
 
 @dataclass

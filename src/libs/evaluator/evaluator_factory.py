@@ -3,6 +3,7 @@ from typing import List
 from src.core.settings import Settings
 from src.libs.evaluator.base_evaluator import BaseEvaluator
 from src.libs.evaluator.custom_evaluator import CustomEvaluator
+from src.libs.evaluator.ragas_evaluator import RagasEvaluator
 
 
 class EvaluatorFactory:
@@ -13,8 +14,8 @@ class EvaluatorFactory:
         """
         Create an Evaluator instance.
 
-        For now, this supports creating a 'custom' evaluator.
-        If multiple backends are specified, it prioritizes 'custom' or the first supported one.
+        For now, this supports creating a 'custom' evaluator or 'ragas' evaluator.
+        If multiple backends are specified, it prioritizes 'custom', then 'ragas'.
 
         Args:
             settings: Global settings object.
@@ -30,7 +31,7 @@ class EvaluatorFactory:
         if "custom" in backends:
             return CustomEvaluator()
 
-        # Future:
-        # if "ragas" in backends: return RagasEvaluator(...)
+        if "ragas" in backends:
+            return RagasEvaluator(metrics=settings.evaluation.metrics)
 
         raise ValueError(f"No supported evaluator backend found in: {backends}")

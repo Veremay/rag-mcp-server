@@ -1713,8 +1713,8 @@ observability:
 | F1 | TraceContext 与结构化日志 | [x] | 2026-02-10 | |
 | F2 | 结构化日志 logger（JSON Lines） | [x] | 2026-02-10 | |
 | F3 | Streamlit Dashboard | [x] | 2026-02-11 | |
-| F4 | Golden Test Set 与回归测试 | [ ] | - | |
-| F5 | Ragas/Custom Evaluator 集成 | [ ] | - | |
+| F4 | Golden Test Set 与回归测试 | [x] | 2026-02-11 | |
+| F5 | Ragas/Custom Evaluator 集成 | [x] | 2026-02-11 | |
 
 #### 阶段 G：端到端验收与文档收口
 
@@ -1736,9 +1736,9 @@ observability:
 | 阶段 C | 15 | 15 | 100% |
 | 阶段 D | 7 | 7 | 100% |
 | 阶段 E | 6 | 6 | 100% |
-| 阶段 F | 5 | 3 | 60% |
+| 阶段 F | 5 | 5 | 100% |
 | 阶段 G | 4 | 0 | 0% |
-| **总计** | **54** | **48** | **89%** |
+| **总计** | **54** | **50** | **93%** |
 
 
 ---
@@ -2271,7 +2271,7 @@ observability:
 
 ## 阶段 F：Observability + Evaluation（目标：可追踪 + 可回归）
 
-### F1：TraceContext 数据结构与 record_stage/finish
+### F1：TraceContext 数据结构与 record_stage/finish ✅
 - **目标**：实现请求级 trace：trace_id、stages、metrics，并能写入 jsonl。
 - **修改文件**：
   - `src/core/trace/trace_context.py`
@@ -2280,7 +2280,7 @@ observability:
 - **验收标准**：record_stage 追加阶段；finish 输出 dict 可 JSON 序列化。
 - **测试方法**：`pytest -q tests/unit/test_trace_context.py`。
 
-### F2：结构化日志 logger（JSON Lines）
+### F2：结构化日志 logger（JSON Lines） ✅
 - **目标**：实现 `observability/logger.py`：把 trace 写入 `logs/traces.jsonl`。
 - **修改文件**：
   - `src/observability/logger.py`
@@ -2307,7 +2307,7 @@ observability:
 - **验收标准**：本地可启动并看到列表（手动验收）。
 - **测试方法**：手动运行 `python scripts/start_dashboard.py`（或 `streamlit run ...`）。
 
-### F5：Evaluation Runner + Golden Test Set 回归
+### F5：Evaluation Runner + Golden Test Set 回归 ✅
 - **目标**：实现 `eval_runner.py`：读取 `tests/fixtures/golden_test_set.json`，跑 retrieval 并产出 metrics。
 - **修改文件**：
   - `src/observability/evaluation/eval_runner.py`
