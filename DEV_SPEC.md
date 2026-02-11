@@ -1712,7 +1712,7 @@ observability:
 |---------|---------|------|---------|------|
 | F1 | TraceContext 与结构化日志 | [x] | 2026-02-10 | |
 | F2 | 结构化日志 logger（JSON Lines） | [x] | 2026-02-10 | |
-| F3 | Streamlit Dashboard | [ ] | - | |
+| F3 | Streamlit Dashboard | [x] | 2026-02-11 | |
 | F4 | Golden Test Set 与回归测试 | [ ] | - | |
 | F5 | Ragas/Custom Evaluator 集成 | [ ] | - | |
 
@@ -1736,9 +1736,9 @@ observability:
 | 阶段 C | 15 | 15 | 100% |
 | 阶段 D | 7 | 7 | 100% |
 | 阶段 E | 6 | 6 | 100% |
-| 阶段 F | 5 | 2 | 40% |
+| 阶段 F | 5 | 3 | 60% |
 | 阶段 G | 4 | 0 | 0% |
-| **总计** | **54** | **47** | **87%** |
+| **总计** | **54** | **48** | **89%** |
 
 
 ---
@@ -2299,7 +2299,7 @@ observability:
 - **验收标准**：一次查询/一次摄取都会生成 trace，包含 dense/sparse/fusion/rerank 阶段耗时字段。
 - **测试方法**：`pytest -q tests/integration/test_hybrid_search.py`。
 
-### F4：Dashboard MVP（Streamlit）
+### F4：Dashboard MVP（Streamlit） ✅
 - **目标**：实现 `dashboard/app.py`：读取 traces.jsonl，展示请求列表与单条详情（最小可用）。
 - **修改文件**：
   - `src/observability/dashboard/app.py`
