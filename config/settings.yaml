@@ -47,7 +47,7 @@ rerank:
 
 # Evaluation Configuration
 evaluation:
-  backends: [ragas, custom]
+  backends: [custom]
   golden_test_set: ./tests/fixtures/golden_test_set.json
 
 # Observability Configuration

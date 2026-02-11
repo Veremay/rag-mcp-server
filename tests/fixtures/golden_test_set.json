@@ -1,14 +1,14 @@
-[
-  {
-    "id": "q1",
-    "query": "What is the primary goal of the Modular RAG architecture?",
-    "golden_answer": "The primary goal is to provide a flexible and pluggable architecture for easy component swapping.",
-    "golden_context_ids": ["doc_001"]
-  },
-  {
-    "id": "q2",
-    "query": "How does the ingestion pipeline handle duplicate files?",
-    "golden_answer": "The ingestion pipeline uses SHA256 hashing to check file integrity and skip duplicates.",
-    "golden_context_ids": ["doc_002"]
-  }
-]
+{
+  "test_cases": [
+    {
+      "query": "Modular RAG 的核心设计原则是什么？",
+      "expected_chunk_ids": [],
+      "expected_sources": ["DEV_SPEC.md"]
+    },
+    {
+      "query": "如何配置 Ollama 作为 LLM 后端？",
+      "expected_chunk_ids": [],
+      "expected_sources": ["specs/03-tech-stack.md"]
+    }
+  ]
+}

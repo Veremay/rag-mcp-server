@@ -1,80 +1,87 @@
 #!/usr/bin/env python3
-"""
-Evaluation Script for Modular RAG.
-
-This script runs the evaluation pipeline using the EvalRunner.
-It loads a golden test set, performs retrieval and generation (or uses mocks),
-and computes evaluation metrics.
-
-Usage:
-    python scripts/evaluate.py [--golden_set path/to/json]
-"""
-
-import argparse
-import logging
-import os
 import sys
+import argparse
+from pathlib import Path
+from rich.console import Console
+from rich.table import Table
 
-# Ensure src module is in python path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+# Add project root to sys.path
+project_root = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(project_root))
 
-from src.core.settings import load_settings
+from src.core.settings import Settings, load_settings
+from src.core.query_engine.hybrid_search import HybridSearch
 from src.libs.evaluator.evaluator_factory import EvaluatorFactory
 from src.observability.evaluation.eval_runner import EvalRunner
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
 
 def main():
-    parser = argparse.ArgumentParser(description="Run RAG Evaluation")
+    parser = argparse.ArgumentParser(description="Run evaluation on golden test set.")
     parser.add_argument(
-        "--golden_set",
+        "--test-set",
         type=str,
         default="tests/fixtures/golden_test_set.json",
-        help="Path to the golden test set JSON file"
+        help="Path to the golden test set JSON file.",
     )
     args = parser.parse_args()
 
-    try:
-        # Load settings
-        settings = load_settings()
-        logger.info("Settings loaded successfully.")
-        
-        # Create evaluator
-        evaluator = EvaluatorFactory.create(settings)
-        logger.info(f"Evaluator created: {evaluator.__class__.__name__}")
-        
-        # Initialize EvalRunner
-        # Note: We are passing None for retriever and llm for now to demonstrate
-        # the runner's capability without requiring a full RAG stack setup.
-        # In a real scenario, you would instantiate HybridSearch and an LLM here.
-        runner = EvalRunner(
-            settings=settings,
-            evaluator=evaluator,
-            retriever=None,  # TODO: Instantiate HybridSearch(settings)
-            llm=None         # TODO: Instantiate LLMFactory.create(settings)
-        )
-        
-        # Run evaluation
-        logger.info(f"Running evaluation on {args.golden_set}...")
-        results = runner.run(args.golden_set, verbose=True)
-        
-        print("\n" + "="*40)
-        print(" FINAL AGGREGATED METRICS ")
-        print("="*40)
-        if results:
-            for metric, score in results.items():
-                print(f"{metric}: {score:.4f}")
-        else:
-            print("No metrics computed.")
-        print("="*40 + "\n")
+    console = Console()
+    console.print("[bold blue]Starting Evaluation...[/bold blue]")
 
+    # 1. Initialize Settings
+    try:
+        settings = load_settings()  # Loads from environment/yaml
     except Exception as e:
-        logger.error(f"Evaluation failed: {e}")
-        sys.exit(1)
+        console.print(f"[bold red]Failed to load settings:[/bold red] {e}")
+        return
+
+    # 2. Initialize Components
+    try:
+        console.print("Initializing HybridSearch...")
+        hybrid_search = HybridSearch(settings)
+        
+        console.print("Initializing Evaluator...")
+        evaluator = EvaluatorFactory.create(settings)
+    except Exception as e:
+        console.print(f"[bold red]Failed to initialize components:[/bold red] {e}")
+        return
+
+    # 3. Run Evaluation
+    runner = EvalRunner(settings, hybrid_search, evaluator)
+    test_set_path = args.test_set
+    
+    if not Path(test_set_path).exists():
+        console.print(f"[bold red]Test set not found:[/bold red] {test_set_path}")
+        return
+
+    console.print(f"Running evaluation on [cyan]{test_set_path}[/cyan]...")
+    try:
+        report = runner.run(test_set_path)
+    except Exception as e:
+        console.print(f"[bold red]Evaluation failed:[/bold red] {e}")
+        import traceback
+        traceback.print_exc()
+        return
+
+    # 4. Print Results
+    console.print("\n[bold green]Evaluation Completed![/bold green]")
+    
+    # Aggregate Metrics Table
+    table = Table(title="Aggregate Metrics")
+    table.add_column("Metric", style="cyan")
+    table.add_column("Value", style="magenta")
+    
+    for k, v in report.aggregate_metrics.items():
+        table.add_row(k, f"{v:.4f}")
+    
+    console.print(table)
+
+    # Detailed Results (Summary)
+    console.print(f"\nTotal Cases: {report.total_cases}")
+    
+    # Optional: Print failed cases or details if needed
+    # for res in report.case_results:
+    #     console.print(f"Query: {res.query} -> {res.metrics}")
 
 if __name__ == "__main__":
     main()
