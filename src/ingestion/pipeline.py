@@ -20,7 +20,7 @@ from src.libs.loader.file_integrity import FileIntegrityRegistry
 from src.libs.loader.pdf_loader import PdfLoader
 from src.libs.splitter.splitter_factory import SplitterFactory
 from src.libs.vector_store.base_vector_store import BaseVectorStore
-from src.observability.logger import log_trace as _log_trace
+from src.observability.logger import write_trace as _write_trace
 
 
 @dataclass(frozen=True)
@@ -88,7 +88,10 @@ class IngestionPipeline:
         trace: Optional[Any] = None,
         on_progress: Optional[Callable[[str, Dict[str, Any]], None]] = None,
     ) -> IngestResult:
-        effective_trace: Any = trace if trace is not None else TraceContext()
+        effective_trace: Any = trace if trace is not None else TraceContext(trace_type="ingestion")
+        # Ensure trace type is set to ingestion if passed in but empty type
+        if isinstance(effective_trace, TraceContext) and effective_trace.trace_type == "query":
+             effective_trace.trace_type = "ingestion"
 
         def record_stage(
             name: str,
@@ -113,7 +116,9 @@ class IngestionPipeline:
             if not isinstance(effective_trace, TraceContext):
                 return
             try:
-                _log_trace(effective_trace, settings=self._settings)
+                # Must finish trace before serializing
+                effective_trace.finish()
+                _write_trace(effective_trace.to_dict(), settings=self._settings)
             except Exception:
                 return
 
@@ -165,7 +170,10 @@ class IngestionPipeline:
             "load",
             start_ms=load_start,
             end_ms=load_end,
-            data={"doc_id": getattr(document, "id", None)},
+            data={
+                "doc_id": getattr(document, "id", None),
+                "method": loader.__class__.__name__ if loader else "unknown",
+            },
         )
 
         split_start = time.time() * 1000.0
@@ -185,6 +193,7 @@ class IngestionPipeline:
             "split",
             start_ms=split_start,
             end_ms=split_end,
+            data={"method": self._settings.ingestion.splitter.provider},
             metrics={"n_chunks": float(len(chunks))},
         )
 
@@ -200,6 +209,7 @@ class IngestionPipeline:
             "transform",
             start_ms=transform_start,
             end_ms=transform_end,
+            data={"method": "chain", "transforms": [t.__class__.__name__ for t in (self._transforms or [])]},
             metrics={"n_chunks": float(len(chunks))},
         )
 
@@ -215,6 +225,10 @@ class IngestionPipeline:
             "encode",
             start_ms=encode_start,
             end_ms=encode_end,
+            data={
+                "dense_model": self._settings.embedding.model,
+                "sparse_model": "bm25",
+            },
             metrics={
                 "n_dense": float(len(batch.dense_vectors)),
                 "n_sparse": float(len(batch.sparse_vectors)),
@@ -233,6 +247,7 @@ class IngestionPipeline:
             "upsert",
             start_ms=upsert_start,
             end_ms=upsert_end,
+            data={"method": self._settings.vector_store.backend},
             metrics={"n_records": float(len(upsert.records))},
         )
 
