@@ -1758,11 +1758,11 @@ observability:
 | 阶段 C | 15 | 15 | 100% |
 | 阶段 D | 7 | 7 | 100% |
 | 阶段 E | 6 | 6 | 100% |
-| 阶段 F | 5 | 1 | 20% |
-| 阶段 G | 6 | 1 | 16% |
+| 阶段 F | 5 | 5 | 100% |
+| 阶段 G | 6 | 2 | 33% |
 | 阶段 H | 5 | 2 | 40% |
 | 阶段 I | 5 | 0 | 0% |
-| **总计** | **66** | **49** | **74%** |
+| **总计** | **66** | **54** | **82%** |
 
 
 ---
@@ -2372,7 +2372,7 @@ observability:
 
 ## 阶段 G：可视化管理平台 Dashboard（目标：六页面完整可视化管理）
 
-### G1：Dashboard 基础架构与系统总览页
+### G1：Dashboard 基础架构与系统总览页 ✅
 - **目标**：搭建 Streamlit 多页面应用框架，实现系统总览页面（展示组件配置与数据统计）。
 - **前置依赖**：F1-F2（Trace 基础设施）
 - **修改文件**：
@@ -2387,7 +2387,7 @@ observability:
 - **验收标准**：`streamlit run src/observability/dashboard/app.py` 可启动，总览页展示当前配置信息。
 - **测试方法**：手动运行 `python scripts/start_dashboard.py` 并验证页面渲染。
 
-### G2：DocumentManager 实现
+### G2：DocumentManager 实现 
 - **目标**：实现 `src/ingestion/document_manager.py`：跨存储的文档生命周期管理（list/delete/stats）。
 - **前置依赖**：C5（Pipeline + 各存储模块已就绪）
 - **修改文件**：
