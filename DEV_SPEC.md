@@ -2474,7 +2474,7 @@ observability:
 - **验收标准**：mock LLM 环境下，`evaluate()` 返回包含 faithfulness/answer_relevancy 的 metrics 字典。
 - **测试方法**：`pytest -q tests/unit/test_ragas_evaluator.py`。
 
-### H2：CompositeEvaluator 实现
+### H2：CompositeEvaluator 实现 [x]
 - **目标**：实现 `composite_evaluator.py`：组合多个 Evaluator 并行执行，汇总结果。
 - **修改文件**：
   - `src/observability/evaluation/composite_evaluator.py`（新增）

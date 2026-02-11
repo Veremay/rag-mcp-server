@@ -4,6 +4,7 @@ from src.core.settings import Settings
 from src.libs.evaluator.base_evaluator import BaseEvaluator
 from src.libs.evaluator.custom_evaluator import CustomEvaluator
 from src.observability.evaluation.ragas_evaluator import RagasEvaluator
+from src.observability.evaluation.composite_evaluator import CompositeEvaluator
 
 
 class EvaluatorFactory:
@@ -14,24 +15,31 @@ class EvaluatorFactory:
         """
         Create an Evaluator instance.
 
-        For now, this supports creating a 'custom' evaluator or 'ragas' evaluator.
-        If multiple backends are specified, it prioritizes 'custom', then 'ragas'.
+        Supports 'custom', 'ragas', or a combination of both.
+        If multiple backends are specified, returns a CompositeEvaluator.
 
         Args:
             settings: Global settings object.
 
         Returns:
-            An instance of BaseEvaluator.
+            An instance of BaseEvaluator (could be CompositeEvaluator).
 
         Raises:
             ValueError: If no supported backend is configured.
         """
         backends = [b.lower() for b in settings.evaluation.backends]
+        evaluators: List[BaseEvaluator] = []
 
         if "custom" in backends:
-            return CustomEvaluator()
+            evaluators.append(CustomEvaluator())
 
         if "ragas" in backends:
-            return RagasEvaluator(metrics=settings.evaluation.metrics)
+            evaluators.append(RagasEvaluator(metrics=settings.evaluation.metrics))
 
-        raise ValueError(f"No supported evaluator backend found in: {backends}")
+        if not evaluators:
+            raise ValueError(f"No supported evaluator backend found in: {backends}")
+
+        if len(evaluators) == 1:
+            return evaluators[0]
+
+        return CompositeEvaluator(evaluators)
