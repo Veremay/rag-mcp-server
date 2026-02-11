@@ -48,3 +48,7 @@ class BaseVectorStore(ABC):
             List of VectorRecord objects ordered by similarity.
         """
         pass
+
+    def get_collection_stats(self) -> Dict[str, Any]:
+        """Get statistics about the collection."""
+        return {}
