@@ -3,10 +3,11 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
+from src.core.settings import Settings
 from src.mcp_server.tools.get_document_summary import (
     _extract_summary_fields,
     _find_metadata_in_jsonl,
@@ -99,7 +100,7 @@ def test_load_one_metadata_by_doc_id_jsonl(tmp_path: Path) -> None:
             backend="jsonl", persist_path=str(tmp_path), collection_name=collection_name
         )
     )
-    meta = _load_one_metadata_by_doc_id(settings, doc_id=doc_id)
+    meta = _load_one_metadata_by_doc_id(cast(Settings, settings), doc_id=doc_id)
     assert meta["doc_id"] == doc_id
     assert meta["title"] == "T"
 
@@ -118,4 +119,4 @@ def test_load_one_metadata_by_doc_id_raises_for_missing_doc_id(tmp_path: Path) -
         )
     )
     with pytest.raises(ValueError):
-        _load_one_metadata_by_doc_id(settings, doc_id="nope")
+        _load_one_metadata_by_doc_id(cast(Settings, settings), doc_id="nope")

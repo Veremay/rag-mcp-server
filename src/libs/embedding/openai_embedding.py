@@ -48,6 +48,8 @@ class OpenAIEmbedding(BaseEmbedding):
         if not texts:
             return []
 
+        kwargs.pop("trace", None)
+
         # Remove empty strings to avoid API errors if necessary,
         # but spec says "Empty input... have clear behavior".
         # OpenAI handles empty strings by returning error or embedding depending on version.
@@ -79,6 +81,8 @@ class OpenAIEmbedding(BaseEmbedding):
         """
         if not texts:
             return []
+
+        kwargs.pop("trace", None)
 
         try:
             response = await self.aclient.embeddings.create(

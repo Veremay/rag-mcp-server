@@ -22,7 +22,9 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--query", required=True)
     parser.add_argument("--top-k", type=int, default=None)
     parser.add_argument("--collection", default=None)
-    parser.add_argument("--verbose", action="store_true", help="Print detailed RAG pipeline steps")
+    parser.add_argument(
+        "--verbose", action="store_true", help="Print detailed RAG pipeline steps"
+    )
     parser.add_argument("--no-rerank", action="store_true")
     parser.add_argument("--config", default="config/settings.yaml")
     return parser.parse_args(argv)
@@ -60,7 +62,9 @@ def _print_ranked_items(items: List[Dict[str, Any]], *, top_k: int) -> None:
         score_str = f"{float(score):.4f}" if isinstance(score, (int, float)) else "-"
         metadata = it.get("metadata")
         metadata_dict = metadata if isinstance(metadata, dict) else {}
-        source = Path(str(metadata_dict.get("source_path") or metadata_dict.get("source") or "-")).name
+        source = Path(
+            str(metadata_dict.get("source_path") or metadata_dict.get("source") or "-")
+        ).name
         page = _extract_page(metadata_dict) or "-"
         text = str(it.get("text", "") or "")
         print(
@@ -114,24 +118,26 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     # 1. Check Environment
-    if str(settings.vector_store.backend).lower() == "chroma" and not _module_available("chromadb"):
+    if str(settings.vector_store.backend).lower() == "chroma" and not _module_available(
+        "chromadb"
+    ):
         print("ERROR: chromadb not installed.", file=sys.stderr)
         return 1
 
     # 2. Process Query
     if args.verbose:
         _print_stage("🔍", f"Processing Query: '{query}'")
-    
+
     qp = QueryProcessor()
     effective_query = query
     if args.collection and "collection:" not in effective_query:
         effective_query = f"collection:{args.collection} {effective_query}".strip()
-    
+
     processed = qp.process(effective_query)
     filters = dict(processed.filters or {})
     if args.collection:
         filters.setdefault("collection", str(args.collection))
-    
+
     if args.verbose:
         print(f"   - Keywords: {processed.keywords}")
         print(f"   - Filters: {filters}")
@@ -143,7 +149,11 @@ def main(argv: list[str] | None = None) -> int:
 
         dense_top_k = int(settings.retrieval.top_k_dense)
         sparse_top_k = int(settings.retrieval.top_k_sparse)
-        final_top_k = int(args.top_k) if args.top_k is not None else int(settings.retrieval.top_k_final)
+        final_top_k = (
+            int(args.top_k)
+            if args.top_k is not None
+            else int(settings.retrieval.top_k_final)
+        )
 
         sparse_query = " ".join(processed.keywords).strip() or effective_query
 
@@ -159,10 +169,10 @@ def main(argv: list[str] | None = None) -> int:
         if args.verbose:
             _print_stage("🔡", "Sparse Retrieval (Keyword Search)")
         sparse_hits = sparse.retrieve(
-            sparse_query, 
-            filters=filters, 
+            sparse_query,
+            filters=filters,
             top_k=sparse_top_k,
-            collection=str(args.collection) if args.collection else None
+            collection=str(args.collection) if args.collection else None,
         )
         if args.verbose:
             print(f"   - Found {len(sparse_hits)} candidates.")
@@ -172,26 +182,35 @@ def main(argv: list[str] | None = None) -> int:
             _print_stage("🔀", "RRF Fusion (Hybrid Search)")
         need_candidates = final_top_k
         if not args.no_rerank:
-            need_candidates = max(need_candidates, int(getattr(settings.rerank, "top_m", need_candidates)))
-        
+            need_candidates = max(
+                need_candidates, int(getattr(settings.rerank, "top_m", need_candidates))
+            )
+
         fused_hits = fusion.fuse(dense_hits, sparse_hits, top_k=need_candidates)
         if args.verbose:
             print(f"   - Combined into {len(fused_hits)} candidates.")
 
         # Hydrate
-        dense_by_id = {h.record.id: h.record for h in dense_hits if getattr(h, "record", None)}
+        dense_by_id = {
+            h.record.id: h.record for h in dense_hits if getattr(h, "record", None)
+        }
         hydrated: List[Dict[str, Any]] = []
         for fh in fused_hits:
             chunk_id = getattr(fh, "chunk_id", None)
-            if not isinstance(chunk_id, str): continue
-            record = dense_by_id.get(chunk_id) or _resolve_record_from_dense_vector_store(dense, chunk_id)
+            if not isinstance(chunk_id, str):
+                continue
+            record = dense_by_id.get(
+                chunk_id
+            ) or _resolve_record_from_dense_vector_store(dense, chunk_id)
             if record:
-                hydrated.append({
-                    "chunk_id": chunk_id,
-                    "text": record.content,
-                    "metadata": dict(record.metadata or {}),
-                    "score": float(getattr(fh, "score", 0.0)),
-                })
+                hydrated.append(
+                    {
+                        "chunk_id": chunk_id,
+                        "text": record.content,
+                        "metadata": dict(record.metadata or {}),
+                        "score": float(getattr(fh, "score", 0.0)),
+                    }
+                )
 
         if not hydrated:
             print("❌  未找到相关文档，请先运行 ingest.py 摄取数据。")

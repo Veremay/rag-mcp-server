@@ -1,12 +1,13 @@
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 import pytest
 
-from src.core.query_engine.dense_retriever import DenseHit
+from src.core.query_engine.dense_retriever import DenseHit, DenseRetriever
 from src.core.query_engine.fusion import RRFFusion
 from src.core.query_engine.hybrid_search import HybridSearch
-from src.core.query_engine.sparse_retriever import SparseHit
+from src.core.query_engine.reranker import Reranker
+from src.core.query_engine.sparse_retriever import SparseHit, SparseRetriever
 from src.core.settings import (
     EmbeddingSettings,
     EvaluationSettings,
@@ -21,6 +22,7 @@ from src.core.settings import (
     VectorStoreSettings,
     VisionLLMSettings,
 )
+from src.core.trace.trace_context import TraceContext
 from src.libs.vector_store.base_vector_store import BaseVectorStore, VectorRecord
 
 
@@ -114,12 +116,16 @@ def test_hybrid_search_returns_topk_with_text_and_metadata() -> None:
     )
     hs = HybridSearch(
         _settings(),
-        dense_retriever=FakeDenseRetriever(store),
-        sparse_retriever=FakeSparseRetriever(),
+        dense_retriever=cast(DenseRetriever, FakeDenseRetriever(store)),
+        sparse_retriever=cast(SparseRetriever, FakeSparseRetriever()),
         fusion=RRFFusion(k=60),
     )
 
-    out = hs.search("collection:demo 介绍 BM25 和 RRF", top_k_final=3)
+    trace = TraceContext(trace_id="t1")
+    out = hs.search("collection:demo 介绍 BM25 和 RRF", top_k_final=3, trace=trace)
+    Reranker(_settings()).rerank("介绍 BM25 和 RRF", out, trace=trace)
     assert len(out) > 0
     assert all(h.record.content for h in out)
     assert all(isinstance(h.record.metadata, dict) for h in out)
+    stage_names = {s.name for s in trace.stages}
+    assert {"dense", "sparse", "fusion", "rerank"} <= stage_names

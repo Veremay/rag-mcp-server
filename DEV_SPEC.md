@@ -2288,7 +2288,7 @@ observability:
 - **验收标准**：写入一条 trace 后文件新增一行合法 JSON。
 - **测试方法**：`pytest -q tests/unit/test_jsonl_logger.py`。
 
-### F3：在关键路径打点（Query 与 Ingestion）
+### F3：在关键路径打点（Query 与 Ingestion） ✅
 - **目标**：在 Pipeline 与 HybridSearch/Rerank 中注入 TraceContext，利用 B 阶段抽象接口中预留的 `trace` 参数，显式调用 `trace.record_stage()` 记录各阶段数据。
 - **修改文件**：
   - `src/ingestion/pipeline.py`

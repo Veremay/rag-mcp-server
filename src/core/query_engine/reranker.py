@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeoutError
 from dataclasses import dataclass
@@ -39,6 +40,27 @@ class Reranker:
         timeout_s: Optional[float] = None,
         trace: Optional[Any] = None,
     ) -> RerankResult:
+        def record_stage(
+            name: str,
+            *,
+            start_ms: float,
+            end_ms: float,
+            data: Optional[dict[str, Any]] = None,
+            metrics: Optional[dict[str, float]] = None,
+        ) -> None:
+            if trace is None:
+                return
+            fn = getattr(trace, "record_stage", None)
+            if not callable(fn):
+                return
+            fn(
+                name,
+                start_ms=float(start_ms),
+                end_ms=float(end_ms),
+                data=dict(data or {}),
+                metrics=dict(metrics or {}),
+            )
+
         normalized_query = (query or "").strip()
         if not normalized_query:
             return RerankResult(items=[], fallback=False)
@@ -59,6 +81,8 @@ class Reranker:
         tail = items[effective_top_m:]
 
         effective_timeout = self._timeout_s if timeout_s is None else timeout_s
+        start_ms = time.time() * 1000.0
+        fallback = False
         try:
             reranked_head = _call_with_timeout(
                 self._backend.rerank,
@@ -69,7 +93,21 @@ class Reranker:
                 trace,
             )
         except (FutureTimeoutError, Exception):
+            fallback = True
             return RerankResult(items=items, fallback=True)
+        finally:
+            end_ms = time.time() * 1000.0
+            record_stage(
+                "rerank",
+                start_ms=start_ms,
+                end_ms=end_ms,
+                data={
+                    "top_m": effective_top_m,
+                    "timeout_s": effective_timeout,
+                    "n_candidates": len(items),
+                },
+                metrics={"fallback": 1.0 if fallback else 0.0},
+            )
 
         merged_head = _merge_preserving_recall(reranked_head, head)
         return RerankResult(items=merged_head + tail, fallback=False)

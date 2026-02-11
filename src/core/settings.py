@@ -157,6 +157,9 @@ class Settings:
 def load_settings(config_path: str = "config/settings.yaml") -> Settings:
     """Load settings from a YAML file."""
     _load_dotenv()
+    env_path = (os.getenv("MODULAR_RAG_CONFIG_PATH") or "").strip()
+    if env_path:
+        config_path = env_path
     if not os.path.exists(config_path):
         raise FileNotFoundError(f"Configuration file not found: {config_path}")
 
