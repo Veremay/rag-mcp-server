@@ -19,16 +19,33 @@ def test_record_stage_appends_stage() -> None:
 
 @pytest.mark.unit
 def test_finish_returns_json_serializable_payload() -> None:
-    trace = TraceContext(trace_id="t2")
+    trace = TraceContext(trace_id="t2", trace_type="test")
     trace.record_stage("s1", data={"path": object()})
 
     payload = trace.finish()
     assert payload["trace_id"] == "t2"
+    assert payload["trace_type"] == "test"
     assert isinstance(payload["duration_ms"], float)
+    assert isinstance(payload["total_elapsed_ms"], float)
+    assert payload["duration_ms"] == payload["total_elapsed_ms"]
     assert isinstance(payload["stages"], list)
 
     s = json.dumps(payload, ensure_ascii=False)
     assert isinstance(s, str) and s
+
+
+@pytest.mark.unit
+def test_trace_context_enhanced_fields() -> None:
+    # 验证 trace_type 默认值
+    trace = TraceContext()
+    assert trace.trace_type == "query"
+
+    # 验证 trace_type 自定义
+    trace_ingest = TraceContext(trace_type="ingestion")
+    assert trace_ingest.trace_type == "ingestion"
+
+    # 验证 elapsed_ms
+    assert trace.elapsed_ms >= 0.0
 
 
 @pytest.mark.unit
