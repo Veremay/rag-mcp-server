@@ -43,6 +43,12 @@ class MockVectorStore(BaseVectorStore):
     ) -> List[VectorRecord]:
         return list(self.store.values())[:top_k]
 
+    def delete_by_metadata(self, metadata_filters: Dict[str, Any]) -> None:
+        pass
+
+    def get_records_by_metadata(self, metadata_filters: Dict[str, Any]) -> List[VectorRecord]:
+        return []
+
 
 @dataclass
 class FakeDenseRetriever:

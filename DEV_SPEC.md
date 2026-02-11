@@ -2446,7 +2446,7 @@ observability:
 - **验收标准**：执行 ingest 后，Dashboard 显示对应的追踪记录与耗时瀑布图。
 - **测试方法**：手动验证（先 ingest → 打开 Dashboard → 查看追踪）。
 
-### G6：Query 追踪页面
+### G6：Query 追踪页面 [x]
 - **目标**：实现 Dashboard Query 追踪页面（查询历史、Dense/Sparse 对比、Rerank 变化）。
 - **前置依赖**：F3（Query 打点）、G1（Dashboard 架构）、G5（TraceService 已实现）
 - **修改文件**：
