@@ -21,7 +21,9 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--collection", required=True)
     parser.add_argument("--path", required=True)
     parser.add_argument("--force", action="store_true")
-    parser.add_argument("--verbose", action="store_true", help="Print detailed progress")
+    parser.add_argument(
+        "--verbose", action="store_true", help="Print detailed progress"
+    )
     parser.add_argument("--config", default="config/settings.yaml")
     return parser.parse_args(argv)
 
@@ -49,7 +51,7 @@ def main(argv: list[str] | None = None) -> int:
     def print_progress(stage: str, data: Dict[str, Any]) -> None:
         if not args.verbose:
             return
-            
+
         if stage == "start":
             print(f"🚀  START Ingest: {data['path']}")
         elif stage == "skipped":
@@ -69,13 +71,17 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"    - ... and {len(chunks) - 3} more")
         elif stage == "transformed":
             chunks = data.get("chunks", [])
-            print(f"🔄  TRANSFORMED {len(chunks)} chunks (Refinement/Captioning/Enrichment)")
+            print(
+                f"🔄  TRANSFORMED {len(chunks)} chunks (Refinement/Captioning/Enrichment)"
+            )
         elif stage == "encoded":
             batch = data.get("batch")
             dense_vecs = batch.dense_vectors if batch else []
             sparse_vecs = batch.sparse_vectors if batch else []
             dim = len(dense_vecs[0]) if dense_vecs else 0
-            print(f"🧠  ENCODED: Dense[{len(dense_vecs)}x{dim}], Sparse[{len(sparse_vecs)}]")
+            print(
+                f"🧠  ENCODED: Dense[{len(dense_vecs)}x{dim}], Sparse[{len(sparse_vecs)}]"
+            )
         elif stage == "upserted":
             upsert = data.get("upsert")
             count = len(upsert.records) if upsert else 0

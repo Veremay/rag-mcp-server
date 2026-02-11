@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence
 
@@ -45,6 +46,27 @@ class HybridSearch:
         top_k_final: Optional[int] = None,
         trace: Optional[Any] = None,
     ) -> List[HybridSearchHit]:
+        def record_stage(
+            name: str,
+            *,
+            start_ms: float,
+            end_ms: float,
+            data: Optional[Dict[str, Any]] = None,
+            metrics: Optional[Dict[str, float]] = None,
+        ) -> None:
+            if trace is None:
+                return
+            fn = getattr(trace, "record_stage", None)
+            if not callable(fn):
+                return
+            fn(
+                name,
+                start_ms=float(start_ms),
+                end_ms=float(end_ms),
+                data=dict(data or {}),
+                metrics=dict(metrics or {}),
+            )
+
         normalized_query = (query or "").strip()
         if not normalized_query:
             return []
@@ -53,21 +75,58 @@ class HybridSearch:
         filters = processed.filters
         sparse_query = " ".join(processed.keywords).strip() or normalized_query
 
+        dense_start = time.time() * 1000.0
         dense_hits = self._dense.retrieve(
             normalized_query,
             filters=filters,
             top_k=top_k_dense,
             trace=trace,
         )
+        dense_end = time.time() * 1000.0
+        record_stage(
+            "dense",
+            start_ms=dense_start,
+            end_ms=dense_end,
+            data={
+                "query": normalized_query,
+                "filters": filters,
+                "top_k": top_k_dense,
+            },
+            metrics={"n_hits": float(len(dense_hits))},
+        )
+
+        sparse_start = time.time() * 1000.0
         sparse_hits = self._sparse.retrieve(
             sparse_query,
             filters=filters,
             top_k=top_k_sparse,
             trace=trace,
         )
+        sparse_end = time.time() * 1000.0
+        record_stage(
+            "sparse",
+            start_ms=sparse_start,
+            end_ms=sparse_end,
+            data={
+                "query": sparse_query,
+                "filters": filters,
+                "top_k": top_k_sparse,
+            },
+            metrics={"n_hits": float(len(sparse_hits))},
+        )
 
+        fusion_start = time.time() * 1000.0
         fused = self._fusion.fuse(dense_hits, sparse_hits, top_k=top_k_final)
-        return _hydrate_fusion_hits(fused, dense_hits=dense_hits, dense=self._dense)
+        hydrated = _hydrate_fusion_hits(fused, dense_hits=dense_hits, dense=self._dense)
+        fusion_end = time.time() * 1000.0
+        record_stage(
+            "fusion",
+            start_ms=fusion_start,
+            end_ms=fusion_end,
+            data={"top_k": top_k_final},
+            metrics={"n_hits": float(len(hydrated))},
+        )
+        return hydrated
 
 
 def _hydrate_fusion_hits(

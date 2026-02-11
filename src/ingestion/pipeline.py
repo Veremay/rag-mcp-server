@@ -1,8 +1,10 @@
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from src.core.settings import Settings
+from src.core.trace.trace_context import TraceContext
 from src.ingestion.embedding.batch_processor import BatchProcessor, BatchProcessResult
 from src.ingestion.embedding.dense_encoder import DenseEncoder
 from src.ingestion.embedding.sparse_encoder import SparseEncoder
@@ -18,6 +20,7 @@ from src.libs.loader.file_integrity import FileIntegrityRegistry
 from src.libs.loader.pdf_loader import PdfLoader
 from src.libs.splitter.splitter_factory import SplitterFactory
 from src.libs.vector_store.base_vector_store import BaseVectorStore
+from src.observability.logger import log_trace as _log_trace
 
 
 @dataclass(frozen=True)
@@ -85,19 +88,57 @@ class IngestionPipeline:
         trace: Optional[Any] = None,
         on_progress: Optional[Callable[[str, Dict[str, Any]], None]] = None,
     ) -> IngestResult:
+        effective_trace: Any = trace if trace is not None else TraceContext()
+
+        def record_stage(
+            name: str,
+            *,
+            start_ms: float,
+            end_ms: float,
+            data: Optional[Dict[str, Any]] = None,
+            metrics: Optional[Dict[str, float]] = None,
+        ) -> None:
+            fn = getattr(effective_trace, "record_stage", None)
+            if not callable(fn):
+                return
+            fn(
+                name,
+                start_ms=float(start_ms),
+                end_ms=float(end_ms),
+                data=dict(data or {}),
+                metrics=dict(metrics or {}),
+            )
+
+        def flush_trace() -> None:
+            if not isinstance(effective_trace, TraceContext):
+                return
+            try:
+                _log_trace(effective_trace, settings=self._settings)
+            except Exception:
+                return
+
         path = Path(file_path)
 
         if on_progress:
             on_progress("start", {"path": str(path)})
 
+        integrity_start = time.time() * 1000.0
         try:
             file_hash = self._integrity.compute_sha256(path)
         except Exception as e:
             raise RuntimeError("IngestionPipeline integrity step failed") from e
+        integrity_end = time.time() * 1000.0
+        record_stage(
+            "integrity",
+            start_ms=integrity_start,
+            end_ms=integrity_end,
+            data={"path": str(path), "hash": file_hash},
+        )
 
         if not force and self._integrity.should_skip(file_hash):
             if on_progress:
                 on_progress("skipped", {"hash": file_hash})
+            flush_trace()
             return IngestResult(
                 skipped=True,
                 file_hash=file_hash,
@@ -111,6 +152,7 @@ class IngestionPipeline:
         if on_progress:
             on_progress("hash_calculated", {"hash": file_hash})
 
+        load_start = time.time() * 1000.0
         try:
             loader = self._resolve_loader(path)
             document = loader.load(path)
@@ -118,9 +160,17 @@ class IngestionPipeline:
                 on_progress("loaded", {"document": document})
         except Exception as e:
             raise RuntimeError("IngestionPipeline loader step failed") from e
+        load_end = time.time() * 1000.0
+        record_stage(
+            "load",
+            start_ms=load_start,
+            end_ms=load_end,
+            data={"doc_id": getattr(document, "id", None)},
+        )
 
+        split_start = time.time() * 1000.0
         try:
-            split = self.split(document, trace=trace)
+            split = self.split(document, trace=effective_trace)
             chunks = split.chunks
             for c in chunks:
                 meta = c.metadata
@@ -130,28 +180,63 @@ class IngestionPipeline:
                 on_progress("split", {"chunks": chunks})
         except Exception as e:
             raise RuntimeError("IngestionPipeline splitter step failed") from e
+        split_end = time.time() * 1000.0
+        record_stage(
+            "split",
+            start_ms=split_start,
+            end_ms=split_end,
+            metrics={"n_chunks": float(len(chunks))},
+        )
 
+        transform_start = time.time() * 1000.0
         try:
-            chunks = self._apply_transforms(chunks, trace=trace)
+            chunks = self._apply_transforms(chunks, trace=effective_trace)
             if on_progress:
                 on_progress("transformed", {"chunks": chunks})
         except Exception as e:
             raise RuntimeError("IngestionPipeline transform step failed") from e
+        transform_end = time.time() * 1000.0
+        record_stage(
+            "transform",
+            start_ms=transform_start,
+            end_ms=transform_end,
+            metrics={"n_chunks": float(len(chunks))},
+        )
 
+        encode_start = time.time() * 1000.0
         try:
-            batch = self._encode(chunks, trace=trace)
+            batch = self._encode(chunks, trace=effective_trace)
             if on_progress:
                 on_progress("encoded", {"batch": batch})
         except Exception as e:
             raise RuntimeError("IngestionPipeline embedding step failed") from e
+        encode_end = time.time() * 1000.0
+        record_stage(
+            "encode",
+            start_ms=encode_start,
+            end_ms=encode_end,
+            metrics={
+                "n_dense": float(len(batch.dense_vectors)),
+                "n_sparse": float(len(batch.sparse_vectors)),
+            },
+        )
 
+        upsert_start = time.time() * 1000.0
         try:
-            upsert = self._upsert(chunks, batch.dense_vectors, trace=trace)
+            upsert = self._upsert(chunks, batch.dense_vectors, trace=effective_trace)
             if on_progress:
                 on_progress("upserted", {"upsert": upsert})
         except Exception as e:
             raise RuntimeError("IngestionPipeline vector upsert step failed") from e
+        upsert_end = time.time() * 1000.0
+        record_stage(
+            "upsert",
+            start_ms=upsert_start,
+            end_ms=upsert_end,
+            metrics={"n_records": float(len(upsert.records))},
+        )
 
+        bm25_start = time.time() * 1000.0
         try:
             chunk_ids = [r.id for r in upsert.records]
             bm25 = self._build_bm25(
@@ -163,18 +248,40 @@ class IngestionPipeline:
                 on_progress("bm25_built", {})
         except Exception as e:
             raise RuntimeError("IngestionPipeline bm25 step failed") from e
+        bm25_end = time.time() * 1000.0
+        record_stage(
+            "bm25",
+            start_ms=bm25_start,
+            end_ms=bm25_end,
+            metrics={"n_terms": float(len(getattr(bm25, "terms", []) or []))},
+        )
 
+        image_start = time.time() * 1000.0
         try:
             self._store_images(collection=collection, document=document)
         except Exception as e:
             raise RuntimeError("IngestionPipeline image storage step failed") from e
+        image_end = time.time() * 1000.0
+        record_stage(
+            "image_store",
+            start_ms=image_start,
+            end_ms=image_end,
+        )
 
+        finalize_start = time.time() * 1000.0
         try:
             self._integrity.mark_success(file_hash)
             if on_progress:
                 on_progress("complete", {})
         except Exception as e:
             raise RuntimeError("IngestionPipeline finalize step failed") from e
+        finalize_end = time.time() * 1000.0
+        record_stage(
+            "finalize",
+            start_ms=finalize_start,
+            end_ms=finalize_end,
+        )
+        flush_trace()
 
         return IngestResult(
             skipped=False,

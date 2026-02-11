@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import sys
 from base64 import b64decode
@@ -182,9 +183,60 @@ def test_mcp_response_builder_supports_json_encoded_image_refs_and_collection_me
 
 
 @pytest.mark.integration
-def test_mcp_stdio_server_query_knowledge_hub_tool_roundtrip() -> None:
+def test_mcp_stdio_server_query_knowledge_hub_tool_roundtrip(tmp_path: Path) -> None:
     repo_root = Path(__file__).resolve().parents[2]
     cmd = [sys.executable, "-m", "src.mcp_server.server"]
+
+    cfg_path = tmp_path / "settings.yaml"
+    cfg_path.write_text(
+        "\n".join(
+            [
+                "llm:",
+                "  provider: ollama",
+                "  model: x",
+                "  azure_endpoint: null",
+                "  api_key: null",
+                "  base_url: null",
+                "embedding:",
+                "  provider: local",
+                "  model: fake",
+                "  base_url: null",
+                "  api_key: null",
+                "vision_llm:",
+                "  provider: ollama",
+                "  model: x",
+                "vector_store:",
+                "  backend: jsonl",
+                f"  persist_path: {str(tmp_path / 'vector')}",
+                "  collection_name: __empty__",
+                "ingestion:",
+                "  splitter:",
+                "    provider: recursive",
+                "    chunk_size: 1000",
+                "    chunk_overlap: 200",
+                "  transform: {}",
+                "retrieval:",
+                "  sparse_backend: bm25",
+                "  fusion_algorithm: rrf",
+                "  top_k_dense: 5",
+                "  top_k_sparse: 5",
+                "  top_k_final: 5",
+                "rerank:",
+                "  backend: none",
+                "  model: x",
+                "  top_m: 5",
+                "evaluation:",
+                "  backends: [custom]",
+                "  golden_test_set: ''",
+                "observability:",
+                "  enabled: false",
+                "  log_file: ''",
+                "  dashboard_port: 0",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
 
     req_init: Dict[str, Any] = {
         "jsonrpc": "2.0",
@@ -211,6 +263,7 @@ def test_mcp_stdio_server_query_knowledge_hub_tool_roundtrip() -> None:
     proc = subprocess.Popen(
         cmd,
         cwd=str(repo_root),
+        env={**os.environ, "MODULAR_RAG_CONFIG_PATH": str(cfg_path)},
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
