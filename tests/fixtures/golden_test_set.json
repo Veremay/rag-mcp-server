@@ -8,7 +8,17 @@
     {
       "query": "如何配置 Ollama 作为 LLM 后端？",
       "expected_chunk_ids": [],
-      "expected_sources": ["specs/03-tech-stack.md"]
+      "expected_sources": ["specs/03-tech-stack.md", "DEV_SPEC.md"]
+    },
+    {
+      "query": "Dashboard 的主要功能有哪些？",
+      "expected_chunk_ids": [],
+      "expected_sources": ["DEV_SPEC.md"]
+    },
+    {
+      "query": "如何运行集成测试？",
+      "expected_chunk_ids": [],
+      "expected_sources": ["DEV_SPEC.md"]
     }
   ]
 }

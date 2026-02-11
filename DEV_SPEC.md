@@ -2524,7 +2524,7 @@ observability:
 - **验收标准**：可在 Dashboard 中运行评估并查看指标。
 - **测试方法**：手动验证。
 
-### H5：Recall 回归测试（E2E）
+### H5：Recall 回归测试（E2E） ✅
 - **目标**：实现 `tests/e2e/test_recall.py`：基于 golden set 做最小召回阈值（例如 hit@k）。
 - **前置依赖**：H3（EvalRunner + golden_test_set）
 - **修改文件**：
