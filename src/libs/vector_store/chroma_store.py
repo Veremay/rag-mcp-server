@@ -133,3 +133,44 @@ class ChromaStore(BaseVectorStore):
             "collection_name": self.collection_name,
             "persist_path": self.persist_path,
         }
+
+    def delete_by_metadata(self, filters: Dict[str, Any]) -> None:
+        """
+        Delete records matching the given metadata filters.
+
+        Args:
+            filters: Metadata filters to match records to delete.
+        """
+        if not filters:
+            return
+        self.collection.delete(where=filters)
+
+    def get_records_by_metadata(self, filters: Dict[str, Any]) -> List[VectorRecord]:
+        """
+        Get records matching the given metadata filters.
+
+        Args:
+            filters: Metadata filters to match records.
+
+        Returns:
+            List of VectorRecord objects.
+        """
+        if not filters:
+            return []
+        
+        results = self.collection.get(where=filters, include=["metadatas", "documents", "embeddings"])
+        if not results or not results["ids"]:
+            return []
+            
+        records = []
+        # Chroma returns lists of items
+        count = len(results["ids"])
+        for i in range(count):
+            records.append(VectorRecord(
+                id=results["ids"][i],
+                embedding=results["embeddings"][i] if results["embeddings"] else [],
+                content=results["documents"][i] if results["documents"] else "",
+                metadata=results["metadatas"][i] if results["metadatas"] else {},
+            ))
+        return records
+

@@ -173,6 +173,65 @@ class BM25Indexer:
     def search(self, *, collection: str, query: str, top_k: int = 10) -> List[BM25Hit]:
         return self.load(collection=collection).search(query=query, top_k=top_k)
 
+    def remove_document(self, *, collection: str, chunk_ids: Sequence[str]) -> None:
+        """
+        Remove documents from the index.
+        
+        Args:
+            collection: The collection name.
+            chunk_ids: List of chunk IDs to remove.
+        """
+        if not chunk_ids:
+            return
+
+        try:
+            index = self.load(collection=collection)
+        except (OSError, ValueError):
+            # If index doesn't exist or is corrupted, nothing to remove
+            return
+
+        chunk_ids_set = set(chunk_ids)
+        
+        # Update doc_len and total_len
+        new_doc_len = {}
+        total_len = 0
+        for doc_id, length in index.doc_len.items():
+            if doc_id not in chunk_ids_set:
+                new_doc_len[doc_id] = length
+                total_len += length
+        
+        # Update postings
+        new_postings = {}
+        for term, docs in index.postings.items():
+            new_docs = {}
+            for doc_id, tf in docs.items():
+                if doc_id not in chunk_ids_set:
+                    new_docs[doc_id] = tf
+            if new_docs:
+                new_postings[term] = new_docs
+        
+        # Recalculate avgdl and idf
+        n_docs = float(len(new_doc_len))
+        avgdl = float(total_len) / n_docs if n_docs > 0 else 0.0
+        
+        new_idf = {}
+        for term, posting in new_postings.items():
+            df = float(len(posting))
+            new_idf[term] = math.log1p((n_docs - df + 0.5) / (df + 0.5))
+            
+        new_index = BM25Index(
+            k1=index.k1,
+            b=index.b,
+            token_pattern=index.token_pattern,
+            doc_len=new_doc_len,
+            avgdl=avgdl,
+            postings=new_postings,
+            idf=new_idf,
+        )
+        
+        self.persist(collection=collection, index=new_index)
+
+
 
 def build_bm25_index(
     *,

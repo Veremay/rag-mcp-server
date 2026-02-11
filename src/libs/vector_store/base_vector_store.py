@@ -49,6 +49,29 @@ class BaseVectorStore(ABC):
         """
         pass
 
+    @abstractmethod
+    def delete_by_metadata(self, filters: Dict[str, Any]) -> None:
+        """
+        Delete records matching the given metadata filters.
+
+        Args:
+            filters: Metadata filters to match records to delete.
+        """
+        pass
+
+    @abstractmethod
+    def get_records_by_metadata(self, filters: Dict[str, Any]) -> List[VectorRecord]:
+        """
+        Get records matching the given metadata filters.
+
+        Args:
+            filters: Metadata filters to match records.
+
+        Returns:
+            List of VectorRecord objects.
+        """
+        pass
+
     def get_collection_stats(self) -> Dict[str, Any]:
         """Get statistics about the collection."""
         return {}
