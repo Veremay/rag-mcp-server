@@ -1723,7 +1723,7 @@ observability:
 | G1 | Dashboard 基础架构与总览页 | [x] | 2026-02-11 | 原 F3 (MVP) |
 | G2 | DocumentManager 实现 | [x] | 2026-02-11 | |
 | G3 | 数据浏览器页面 | [x] | 2026-02-11 | |
-| G4 | Ingestion 管理页面 | [ ] | - | |
+| G4 | Ingestion 管理页面 | [x] | 2026-02-11 | |
 | G5 | Ingestion 追踪页面 | [x] | 2026-02-11 | |
 | G6 | Query 追踪页面 | [x] | 2026-02-11 | |
 

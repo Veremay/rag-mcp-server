@@ -32,6 +32,7 @@ class RagasEvaluator(BaseEvaluator):
     """
 
     def __init__(self, metrics: Optional[List[str]] = None):
+        super().__init__()
         if not RAGAS_AVAILABLE:
             raise ImportError("ragas package is not installed. Please install it with `pip install ragas`.")
         
