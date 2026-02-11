@@ -1713,7 +1713,7 @@ observability:
 | F1 | TraceContext 增强 (finish/elapsed_ms) | [x] | 2026-02-11 | 已对齐最新规范 |
 | F2 | 结构化日志 logger（JSON Lines） | [x] | 2026-02-11 | 已对齐最新规范 |
 | F3 | Query 链路打点 (HybridSearch) | [x] | 2026-02-11 | 已对齐最新规范 |
-| F4 | Ingestion 链路打点 (Pipeline) | [ ] | - | |
+| F4 | Ingestion 链路打点 (Pipeline) | [x] | 2026-02-11 | 已实现 Trace 注入与阶段记录 |
 | F5 | Pipeline 进度回调 (on_progress) | [ ] | - | 新增需求 |
 
 #### 阶段 G：可视化管理平台 (Dashboard)

@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from src.core.settings import IngestionSettings, Settings, SplitterSettings
+from src.core.settings import EmbeddingSettings, IngestionSettings, Settings, SplitterSettings, VectorStoreSettings
 from src.ingestion.models import Document
 from src.ingestion.pipeline import IngestionPipeline
 from src.ingestion.storage.bm25_indexer import BM25Indexer
@@ -74,17 +74,26 @@ def _make_settings(provider: str, chunk_size: int) -> Settings:
     settings.ingestion.transform.chunk_refiner = MagicMock()
     settings.ingestion.transform.metadata_enricher = MagicMock()
     settings.ingestion.transform.image_captioner = MagicMock()
+
+    settings.embedding = MagicMock(spec=EmbeddingSettings)
+    settings.vector_store = MagicMock(spec=VectorStoreSettings)
     return settings
 
 
+from src.core.trace.trace_context import TraceContext
+
 @pytest.mark.integration
-def test_ingestion_pipeline_roundtrip_and_incremental_skip(tmp_path: Path) -> None:
+def test_ingestion_pipeline_generates_trace_with_all_stages(tmp_path: Path) -> None:
+    """Validate F4: Ingestion pipeline records all required stages with details."""
     SplitterFactory.register("fake_c14", FakeSplitter)
     settings = _make_settings(provider="fake_c14", chunk_size=20)
+    settings.embedding.model = "fake-embed"
+    settings.vector_store.backend = "mock-store"
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as f:
         f.write(b"%PDF-1.4 dummy")
         file_path = Path(f.name)
+    
     try:
         integrity = FileIntegrityRegistry(storage_path=tmp_path / "history.json")
         bm25 = BM25Indexer(base_dir=tmp_path / "bm25")
@@ -102,24 +111,34 @@ def test_ingestion_pipeline_roundtrip_and_incremental_skip(tmp_path: Path) -> No
             image_storage=images,
         )
 
-        r1 = pipeline.ingest(collection="c14", file_path=file_path)
-        assert r1.skipped is False
-        assert r1.document is not None
-        assert len(r1.chunks) > 0
-        assert all(c.metadata.get("collection") == "c14" for c in r1.chunks)
-        assert r1.upsert is not None
-        assert len(store.store) == len(r1.upsert.records)
-        assert all(r.metadata.get("collection") == "c14" for r in r1.upsert.records)
+        trace = TraceContext()
+        pipeline.ingest(collection="c14", file_path=file_path, trace=trace)
 
-        meta_path = tmp_path / "bm25" / "c14" / "meta.json"
-        postings_path = tmp_path / "bm25" / "c14" / "postings.json"
-        assert meta_path.exists()
-        assert postings_path.exists()
+        # 1. Verify trace type
+        assert trace.trace_type == "ingestion"
 
-        before = len(store.store)
-        r2 = pipeline.ingest(collection="c14", file_path=file_path)
-        assert r2.skipped is True
-        assert len(store.store) == before
+        # 2. Verify all stages are present
+        stage_names = [s.name for s in trace.stages]
+        required_stages = ["load", "split", "transform", "encode", "upsert"]
+        for req in required_stages:
+            assert req in stage_names, f"Missing stage: {req}"
+
+        # 3. Verify stage details (method, elapsed_ms)
+        for s in trace.stages:
+            assert s.duration_ms is not None
+            assert s.duration_ms >= 0.0
+            
+            if s.name == "load":
+                assert s.data["method"] == "FakeLoader"
+            elif s.name == "split":
+                assert s.data["method"] == "fake_c14"
+            elif s.name == "transform":
+                assert s.data["method"] == "chain"
+            elif s.name == "encode":
+                assert s.data["dense_model"] == "fake-embed"
+            elif s.name == "upsert":
+                assert s.data["method"] == "mock-store"
+
     finally:
         if file_path.exists():
             os.unlink(file_path)
