@@ -67,7 +67,7 @@ def _render_management_section(collection_name: str) -> None:
     # Use dataframe with selection for deletion
     selection = st.dataframe(
         df,
-        use_container_width=True,
+        width='stretch',
         selection_mode="single-row",
         on_select="rerun",
         hide_index=True
