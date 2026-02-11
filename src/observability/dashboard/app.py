@@ -3,6 +3,7 @@ import streamlit as st
 from src.observability.dashboard.pages.overview import render_overview
 from src.observability.dashboard.pages.data_browser import render_data_browser_page
 from src.observability.dashboard.pages.ingestion_manager import render_ingestion_manager_page
+from src.observability.dashboard.pages.ingestion_traces import render_ingestion_traces_page
 
 
 def placeholder_page() -> None:
@@ -12,6 +13,12 @@ def placeholder_page() -> None:
 
 # Define pages
 overview_page = st.Page(render_overview, title="System Overview", icon="🏠")
+ingestion_traces_page = st.Page(
+    render_ingestion_traces_page,
+    title="Ingestion Traces",
+    icon="⏱️",
+    url_path="ingestion-traces",
+)
 trace_list_page = st.Page(
     placeholder_page, title="Trace List", icon="📋", url_path="traces"
 )
@@ -36,7 +43,7 @@ eval_page = st.Page(placeholder_page, title="Evaluation", icon="📊", url_path=
 pg = st.navigation(
     {
         "General": [overview_page],
-        "Observability": [trace_list_page, trace_detail_page],
+        "Observability": [ingestion_traces_page, trace_list_page, trace_detail_page],
         "Knowledge & Tools": [knowledge_page, ingestion_page, retrieval_page, eval_page],
     }
 )
