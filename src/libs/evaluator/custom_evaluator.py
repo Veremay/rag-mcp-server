@@ -15,6 +15,7 @@ class CustomEvaluator(BaseEvaluator):
         retrieved_ids: List[str],
         golden_ids: List[str],
         trace: Optional[Any] = None,
+        **kwargs: Any,
     ) -> Dict[str, float]:
         """
         Calculate Hit Rate and Mean Reciprocal Rank (MRR).
