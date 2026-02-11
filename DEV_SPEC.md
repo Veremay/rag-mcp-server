@@ -1710,9 +1710,9 @@ observability:
 
 | 任务编号 | 任务名称 | 状态 | 完成日期 | 备注 |
 |---------|---------|------|---------|------|
-| F1 | TraceContext 增强 (finish/elapsed_ms) | [x] | 2026-02-11 | 需补充增强特性 |
-| F2 | 结构化日志 logger（JSON Lines） | [x] | 2026-02-10 | 已实现基础版 |
-| F3 | Query 链路打点 (HybridSearch) | [x] | 2026-02-11 | 已实现 QueryProcessor 打点 |
+| F1 | TraceContext 增强 (finish/elapsed_ms) | [x] | 2026-02-11 | 已对齐最新规范 |
+| F2 | 结构化日志 logger（JSON Lines） | [x] | 2026-02-11 | 已对齐最新规范 |
+| F3 | Query 链路打点 (HybridSearch) | [x] | 2026-02-11 | 已对齐最新规范 |
 | F4 | Ingestion 链路打点 (Pipeline) | [ ] | - | |
 | F5 | Pipeline 进度回调 (on_progress) | [ ] | - | 新增需求 |
 

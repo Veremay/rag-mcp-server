@@ -1,11 +1,12 @@
 import json
+import logging
 from pathlib import Path
 
 import pytest
 
 from src.core.settings import ObservabilitySettings, Settings
 from src.core.trace.trace_context import TraceContext
-from src.observability.logger import create_jsonl_logger
+from src.observability.logger import write_trace, get_trace_logger
 
 
 def _settings(*, enabled: bool, log_file: str) -> Settings:
@@ -48,6 +49,15 @@ def _settings(*, enabled: bool, log_file: str) -> Settings:
     )
 
 
+@pytest.fixture(autouse=True)
+def reset_trace_logger():
+    """Reset trace logger handlers before and after each test."""
+    logger = get_trace_logger()
+    logger.handlers = []
+    yield
+    logger.handlers = []
+
+
 @pytest.mark.unit
 def test_jsonl_logger_writes_one_valid_json_line(tmp_path: Path) -> None:
     log_path = tmp_path / "traces.jsonl"
@@ -55,10 +65,9 @@ def test_jsonl_logger_writes_one_valid_json_line(tmp_path: Path) -> None:
 
     trace = TraceContext(trace_id="t1")
     trace.record_stage("s1", duration_ms=1.0, data={"k": "v"})
+    trace.finish()
 
-    logger = create_jsonl_logger(settings)
-    assert logger is not None
-    logger.log_trace(trace)
+    write_trace(trace.to_dict(), settings=settings)
 
     assert log_path.exists()
     lines = log_path.read_text(encoding="utf-8").splitlines()
@@ -72,4 +81,10 @@ def test_jsonl_logger_writes_one_valid_json_line(tmp_path: Path) -> None:
 def test_jsonl_logger_disabled_returns_none(tmp_path: Path) -> None:
     log_path = tmp_path / "traces.jsonl"
     settings = _settings(enabled=False, log_file=str(log_path))
-    assert create_jsonl_logger(settings) is None
+    
+    trace = TraceContext(trace_id="t1")
+    trace.finish()
+    
+    write_trace(trace.to_dict(), settings=settings)
+    
+    assert not log_path.exists()
