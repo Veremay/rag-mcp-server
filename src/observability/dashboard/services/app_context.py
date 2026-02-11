@@ -8,6 +8,7 @@ from src.ingestion.storage.bm25_indexer import BM25Indexer
 from src.ingestion.storage.image_storage import ImageStorage
 from src.libs.loader.file_integrity import FileIntegrityRegistry
 from src.ingestion.document_manager import DocumentManager
+from src.ingestion.pipeline import IngestionPipeline
 
 
 @st.cache_resource
@@ -36,3 +37,13 @@ def get_document_manager() -> DocumentManager:
         image_storage=image_storage,
         file_integrity=file_integrity
     )
+
+
+@st.cache_resource
+def get_ingestion_pipeline() -> IngestionPipeline:
+    """
+    Get cached IngestionPipeline instance.
+    Note: Pipeline components are stateless or thread-safe enough for Streamlit.
+    """
+    settings = load_settings()
+    return IngestionPipeline(settings)
