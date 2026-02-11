@@ -61,8 +61,21 @@ class TraceContext:
     stages: List[TraceStage] = field(default_factory=list)
     metrics: Dict[str, float] = field(default_factory=dict)
 
-    @property
-    def elapsed_ms(self) -> float:
+    def elapsed_ms(self, stage_name: Optional[str] = None) -> float:
+        """
+        Get elapsed time in milliseconds.
+        If stage_name is provided, returns duration of that stage (if found).
+        Otherwise returns total trace duration.
+        """
+        if stage_name:
+            for s in self.stages:
+                if s.name == stage_name:
+                    if s.duration_ms is not None:
+                        return float(s.duration_ms)
+                    if s.start_ms is not None and s.end_ms is not None:
+                        return float(s.end_ms) - float(s.start_ms)
+            return 0.0
+
         end = self.finished_ms if self.finished_ms is not None else _now_ms()
         return float(end) - float(self.started_ms)
 
@@ -102,19 +115,30 @@ class TraceContext:
             raise ValueError("metric key must be a non-empty string")
         self.metrics[k] = float(value)
 
-    def finish(self) -> JsonDict:
+    def finish(self) -> None:
+        """Mark the trace as finished and calculate total duration."""
         if self.finished_ms is None:
             self.finished_ms = _now_ms()
-        duration_ms = self.elapsed_ms
+
+    def to_dict(self) -> JsonDict:
+        """Serialize trace context to a JSON-compatible dictionary."""
+        duration_ms = self.elapsed_ms()
         payload: JsonDict = {
             "trace_id": self.trace_id,
             "trace_type": self.trace_type,
             "started_ms": float(self.started_ms),
-            "finished_ms": float(self.finished_ms),
+            "finished_ms": float(self.finished_ms) if self.finished_ms else None,
             "duration_ms": float(duration_ms),
             "total_elapsed_ms": float(duration_ms),
             "stages": [s.to_dict() for s in list(self.stages)],
             "metrics": _json_safe(self.metrics),
         }
-        json.dumps(payload, ensure_ascii=False)
+        # Validate JSON serializability
+        try:
+            json.dumps(payload, ensure_ascii=False)
+        except (TypeError, ValueError):
+            # Fallback for non-serializable data
+            payload["metrics"] = str(self.metrics)
+            for s in payload["stages"]: # type: ignore
+                s["data"] = str(s["data"]) # type: ignore
         return payload

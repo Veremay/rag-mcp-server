@@ -12,13 +12,14 @@ from src.core.trace.trace_context import TraceContext
 class TraceCollector:
     log_file: Optional[Union[str, Path]] = None
 
-    def write(self, trace: TraceContext) -> None:
+    def collect(self, trace: TraceContext) -> None:
         if self.log_file is None:
             return
 
         path = Path(self.log_file)
         path.parent.mkdir(parents=True, exist_ok=True)
-        payload = trace.finish()
+        trace.finish()
+        payload = trace.to_dict()
         line = json.dumps(payload, ensure_ascii=False)
         with open(path, "a", encoding="utf-8") as f:
             f.write(line + "\n")
