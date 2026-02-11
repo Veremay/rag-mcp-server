@@ -3,7 +3,7 @@ from typing import List
 from src.core.settings import Settings
 from src.libs.evaluator.base_evaluator import BaseEvaluator
 from src.libs.evaluator.custom_evaluator import CustomEvaluator
-from src.libs.evaluator.ragas_evaluator import RagasEvaluator
+from src.observability.evaluation.ragas_evaluator import RagasEvaluator
 
 
 class EvaluatorFactory:
