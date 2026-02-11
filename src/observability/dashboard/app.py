@@ -1,6 +1,7 @@
 import streamlit as st
 
 from src.observability.dashboard.pages.overview import render_overview
+from src.observability.dashboard.pages.data_browser import render_data_browser_page
 
 
 def placeholder_page() -> None:
@@ -17,7 +18,7 @@ trace_detail_page = st.Page(
     placeholder_page, title="Trace Detail", icon="🔍", url_path="trace-detail"
 )
 knowledge_page = st.Page(
-    placeholder_page, title="Knowledge Base", icon="📚", url_path="knowledge"
+    render_data_browser_page, title="Data Browser", icon="📚", url_path="data-browser"
 )
 retrieval_page = st.Page(
     placeholder_page, title="Retrieval Lab", icon="🧪", url_path="retrieval"
