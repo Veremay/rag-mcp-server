@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import sys
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -104,6 +105,8 @@ def main(argv: list[str] | None = None) -> int:
     from src.core.query_engine.reranker import Reranker
     from src.core.query_engine.sparse_retriever import SparseRetriever
     from src.core.settings import load_settings
+    from src.core.trace.trace_context import TraceContext
+    from src.observability.logger import write_trace
 
     config_path = Path(args.config)
     if not config_path.is_absolute():
@@ -128,12 +131,25 @@ def main(argv: list[str] | None = None) -> int:
     if args.verbose:
         _print_stage("🔍", f"Processing Query: '{query}'")
 
+    trace = TraceContext(trace_type="query")
+
     qp = QueryProcessor()
     effective_query = query
     if args.collection and "collection:" not in effective_query:
         effective_query = f"collection:{args.collection} {effective_query}".strip()
 
     processed = qp.process(effective_query)
+    
+    trace.record_stage(
+        "query_processing",
+        data={
+            "original_query": query,
+            "effective_query": effective_query,
+            "keywords": processed.keywords,
+            "filters": processed.filters,
+        },
+    )
+
     filters = dict(processed.filters or {})
     if args.collection:
         filters.setdefault("collection", str(args.collection))
@@ -160,7 +176,18 @@ def main(argv: list[str] | None = None) -> int:
         # 3. Dense Retrieval
         if args.verbose:
             _print_stage("🧠", "Dense Retrieval (Vector Search)")
-        dense_hits = dense.retrieve(effective_query, filters=filters, top_k=dense_top_k)
+        
+        dense_start = time.time() * 1000.0
+        dense_hits = dense.retrieve(effective_query, filters=filters, top_k=dense_top_k, trace=trace)
+        dense_end = time.time() * 1000.0
+        trace.record_stage(
+            "dense",
+            start_ms=dense_start,
+            end_ms=dense_end,
+            metrics={"n_hits": float(len(dense_hits))},
+            data={"query": effective_query, "top_k": dense_top_k},
+        )
+
         if args.verbose:
             max_score = f"{dense_hits[0].score:.4f}" if dense_hits else "N/A"
             print(f"   - Found {len(dense_hits)} candidates. Max score: {max_score}")
@@ -168,12 +195,24 @@ def main(argv: list[str] | None = None) -> int:
         # 4. Sparse Retrieval
         if args.verbose:
             _print_stage("🔡", "Sparse Retrieval (Keyword Search)")
+        
+        sparse_start = time.time() * 1000.0
         sparse_hits = sparse.retrieve(
             sparse_query,
             filters=filters,
             top_k=sparse_top_k,
             collection=str(args.collection) if args.collection else None,
+            trace=trace,
         )
+        sparse_end = time.time() * 1000.0
+        trace.record_stage(
+            "sparse",
+            start_ms=sparse_start,
+            end_ms=sparse_end,
+            metrics={"n_hits": float(len(sparse_hits))},
+            data={"query": sparse_query, "top_k": sparse_top_k},
+        )
+
         if args.verbose:
             print(f"   - Found {len(sparse_hits)} candidates.")
 
@@ -186,7 +225,16 @@ def main(argv: list[str] | None = None) -> int:
                 need_candidates, int(getattr(settings.rerank, "top_m", need_candidates))
             )
 
+        fusion_start = time.time() * 1000.0
         fused_hits = fusion.fuse(dense_hits, sparse_hits, top_k=need_candidates)
+        fusion_end = time.time() * 1000.0
+        trace.record_stage(
+            "fusion",
+            start_ms=fusion_start,
+            end_ms=fusion_end,
+            metrics={"n_output": float(len(fused_hits))},
+        )
+
         if args.verbose:
             print(f"   - Combined into {len(fused_hits)} candidates.")
 
@@ -223,7 +271,7 @@ def main(argv: list[str] | None = None) -> int:
             if args.verbose:
                 _print_stage("⚖️ ", "Reranking (Cross-Encoder)")
             reranker = Reranker(settings)
-            rerank_result = reranker.rerank(effective_query, hydrated, timeout_s=10.0)
+            rerank_result = reranker.rerank(effective_query, hydrated, timeout_s=10.0, trace=trace)
             final_items = list(rerank_result.items or [])
             rerank_fallback = bool(rerank_result.fallback)
             if args.verbose:
@@ -233,6 +281,8 @@ def main(argv: list[str] | None = None) -> int:
         # 7. Final Results
         _print_stage("🎯", f"Top {final_top_k} Results:")
         _print_ranked_items(final_items, top_k=final_top_k)
+
+        write_trace(trace.to_dict(), settings=settings)
 
         return 0
     except Exception as e:
