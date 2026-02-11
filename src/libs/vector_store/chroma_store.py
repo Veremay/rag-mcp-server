@@ -119,3 +119,17 @@ class ChromaStore(BaseVectorStore):
             )
 
         return records
+
+    def get_collection_stats(self) -> Dict[str, Any]:
+        """Get statistics about the collection."""
+        try:
+            count = self.collection.count()
+        except Exception:
+            count = -1
+            
+        return {
+            "count": count,
+            "backend": "chroma",
+            "collection_name": self.collection_name,
+            "persist_path": self.persist_path,
+        }

@@ -90,6 +90,24 @@ class JsonlStore(BaseVectorStore):
             )
         return out
 
+    def get_collection_stats(self) -> Dict[str, Any]:
+        """Get statistics about the collection."""
+        path = self._path()
+        count = 0
+        if path.exists():
+            try:
+                # Simple line counting for now
+                count = sum(1 for line in path.read_text(encoding="utf-8").splitlines() if line.strip())
+            except Exception:
+                count = -1
+        
+        return {
+            "count": count,
+            "backend": "jsonl",
+            "collection_name": self._collection_name,
+            "persist_path": str(self._base_dir),
+        }
+
     def _persist_all(self, records: Dict[str, VectorRecord]) -> None:
         path = self._path()
         lines: List[str] = []
