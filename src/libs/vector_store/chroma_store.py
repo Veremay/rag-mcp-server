@@ -154,11 +154,12 @@ class ChromaStore(BaseVectorStore):
 
         Returns:
             List of VectorRecord objects.
-        """
-        if not filters:
-            return []
+         """
+        # If filters is None or empty dict, we assume "no filter" and fetch all records.
+        # Note: Fetching all records might be heavy for large collections.
+        where_clause = filters if filters else None
         
-        results = self.collection.get(where=filters, include=["metadatas", "documents", "embeddings"])
+        results = self.collection.get(where=where_clause, include=["metadatas", "documents", "embeddings"])
         if not results or not results["ids"]:
             return []
             
@@ -168,9 +169,9 @@ class ChromaStore(BaseVectorStore):
         for i in range(count):
             records.append(VectorRecord(
                 id=results["ids"][i],
-                embedding=results["embeddings"][i] if results["embeddings"] else [],
-                content=results["documents"][i] if results["documents"] else "",
-                metadata=results["metadatas"][i] if results["metadatas"] else {},
+                embedding=results["embeddings"][i] if results.get("embeddings") is not None else [],
+                content=results["documents"][i] if results.get("documents") is not None else "",
+                metadata=results["metadatas"][i] if results.get("metadatas") is not None else {},
             ))
         return records
 

@@ -69,7 +69,7 @@ def render_data_browser_page() -> None:
     # Use selection to drive detail view
     selection = st.dataframe(
         df, 
-        use_container_width=True,
+        width='stretch',
         selection_mode="single-row",
         on_select="rerun",
         hide_index=True
