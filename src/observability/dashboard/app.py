@@ -5,6 +5,7 @@ from src.observability.dashboard.pages.data_browser import render_data_browser_p
 from src.observability.dashboard.pages.ingestion_manager import render_ingestion_manager_page
 from src.observability.dashboard.pages.ingestion_traces import render_ingestion_traces_page
 from src.observability.dashboard.pages.query_traces import render_query_traces_page
+from src.observability.dashboard.pages.evaluation_panel import render_evaluation_panel
 
 
 def placeholder_page() -> None:
@@ -38,7 +39,7 @@ ingestion_page = st.Page(
 retrieval_page = st.Page(
     placeholder_page, title="Retrieval Lab", icon="🧪", url_path="retrieval"
 )
-eval_page = st.Page(placeholder_page, title="Evaluation", icon="📊", url_path="evaluation")
+eval_page = st.Page(render_evaluation_panel, title="Evaluation", icon="📊", url_path="evaluation")
 
 # Navigation
 pg = st.navigation(

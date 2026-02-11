@@ -2461,7 +2461,7 @@ observability:
 
 ## 阶段 H：评估体系（目标：可插拔评估 + 可量化回归）
 
-### H1：RagasEvaluator 实现 [x]
+### H1：RagasEvaluator 实现 ✅
 - **目标**：实现 `ragas_evaluator.py`：封装 Ragas 框架，实现 `BaseEvaluator` 接口。
 - **修改文件**：
   - `src/observability/evaluation/ragas_evaluator.py`（新增）
@@ -2474,7 +2474,7 @@ observability:
 - **验收标准**：mock LLM 环境下，`evaluate()` 返回包含 faithfulness/answer_relevancy 的 metrics 字典。
 - **测试方法**：`pytest -q tests/unit/test_ragas_evaluator.py`。
 
-### H2：CompositeEvaluator 实现 [x]
+### H2：CompositeEvaluator 实现 ✅
 - **目标**：实现 `composite_evaluator.py`：组合多个 Evaluator 并行执行，汇总结果。
 - **修改文件**：
   - `src/observability/evaluation/composite_evaluator.py`（新增）
@@ -2486,7 +2486,7 @@ observability:
 - **验收标准**：配置两个 evaluator 时，返回的 metrics 包含两者的指标。
 - **测试方法**：`pytest -q tests/unit/test_composite_evaluator.py`。
 
-### H3：EvalRunner + Golden Test Set [x]
+### H3：EvalRunner + Golden Test Set ✅
 - **目标**：实现 `eval_runner.py`：读取 `tests/fixtures/golden_test_set.json`，跑 retrieval 并产出 metrics。
 - **前置依赖**：D5（HybridSearch）、H1-H2（评估器）
 - **修改文件**：
