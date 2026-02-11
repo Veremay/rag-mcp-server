@@ -108,6 +108,51 @@ class JsonlStore(BaseVectorStore):
             "persist_path": str(self._base_dir),
         }
 
+    def delete_by_metadata(self, filters: Dict[str, Any]) -> None:
+        """
+        Delete records matching the given metadata filters.
+
+        Args:
+            filters: Metadata filters to match records to delete.
+        """
+        if not filters:
+            return
+
+        records = self._load_all()
+        to_delete = []
+        for rid, record in records.items():
+            if _metadata_match(record.metadata, filters):
+                to_delete.append(rid)
+        
+        if not to_delete:
+            return
+
+        for rid in to_delete:
+            del records[rid]
+            
+        self._persist_all(records)
+
+    def get_records_by_metadata(self, filters: Dict[str, Any]) -> List[VectorRecord]:
+        """
+        Get records matching the given metadata filters.
+
+        Args:
+            filters: Metadata filters to match records.
+
+        Returns:
+            List of VectorRecord objects.
+        """
+        if not filters:
+            return []
+
+        records = self._load_all()
+        matching_records = []
+        for rid, record in records.items():
+            if _metadata_match(record.metadata, filters):
+                matching_records.append(record)
+        return matching_records
+
+
     def _persist_all(self, records: Dict[str, VectorRecord]) -> None:
         path = self._path()
         lines: List[str] = []

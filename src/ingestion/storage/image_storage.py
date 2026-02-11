@@ -58,6 +58,41 @@ class ImageStorage:
 
         return path
 
+    def delete(self, *, collection: str, image_id: str) -> bool:
+        """
+        Delete an image.
+
+        Args:
+            collection: Collection name.
+            image_id: Image ID.
+
+        Returns:
+            True if deleted, False if not found.
+        """
+        collection = self._validate_name(collection, name="collection")
+        image_id = self._validate_name(image_id, name="image_id")
+
+        index = self._load_index(collection=collection)
+        rel = index.get(image_id)
+        if not rel:
+            return False
+
+        path = (self._base_dir / rel).resolve()
+        
+        # Remove from index first
+        del index[image_id]
+        self._save_index(collection=collection, index=index)
+
+        # Then delete file
+        try:
+            if path.exists():
+                os.remove(path)
+                return True
+        except OSError:
+            pass
+            
+        return False
+
     def _index_path(self, *, collection: str) -> Path:
         return self._base_dir / collection / "index.json"
 

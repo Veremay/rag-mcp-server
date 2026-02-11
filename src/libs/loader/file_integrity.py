@@ -2,7 +2,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
-from typing import Dict, Optional, Set
+from typing import Any, Dict, List, Optional, Set
 
 
 class FileIntegrityRegistry:
@@ -28,7 +28,7 @@ class FileIntegrityRegistry:
             # Assuming running from project root
             self.storage_path = Path("data/cache/ingestion_history.json")
 
-        self._registry: Dict[str, str] = {}  # Map file_hash -> status (e.g., "success")
+        self._registry: Dict[str, Any] = {}  # Map file_hash -> status (str) or metadata (dict)
         self._load()
 
     def compute_sha256(self, file_path: Path) -> str:
@@ -61,29 +61,68 @@ class FileIntegrityRegistry:
         Returns:
             True if the file should be skipped, False otherwise.
         """
-        return self._registry.get(file_hash) == "success"
+        val = self._registry.get(file_hash)
+        if isinstance(val, dict):
+            return val.get("status") == "success"
+        return val == "success"
 
-    def mark_success(self, file_hash: str) -> None:
+    def mark_success(self, file_hash: str, metadata: Optional[Dict[str, Any]] = None) -> None:
         """
         Mark a file hash as successfully processed.
 
         Args:
             file_hash: The SHA256 hash of the file.
+            metadata: Optional metadata to store with the record (e.g., file path).
         """
-        self._registry[file_hash] = "success"
+        if metadata:
+            self._registry[file_hash] = {"status": "success", **metadata}
+        else:
+            self._registry[file_hash] = "success"
         self._save()
 
     def _load(self) -> None:
-        """Load the registry from disk."""
         if self.storage_path.exists():
             try:
-                with open(self.storage_path, "r", encoding="utf-8") as f:
-                    self._registry = json.load(f)
-            except (json.JSONDecodeError, OSError):
-                # If file is corrupted or unreadable, start with empty registry
+                self._registry = json.loads(self.storage_path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
                 self._registry = {}
-        else:
-            self._registry = {}
+
+    def remove_record(self, file_path: str) -> bool:
+        """
+        Remove a record from the registry by file path.
+
+        Args:
+            file_path: Absolute path to the file.
+        
+        Returns:
+            True if the record was removed, False if not found.
+        """
+        to_remove = []
+        for h, val in self._registry.items():
+            if isinstance(val, dict) and val.get("path") == str(file_path):
+                to_remove.append(h)
+        
+        if not to_remove:
+            # Fallback: if user passes hash instead of path?
+            # Or if path is not stored (legacy).
+            # We can't safely remove legacy records by path.
+            return False
+            
+        for h in to_remove:
+            del self._registry[h]
+            
+        self._save()
+        return True
+
+    def list_processed(self) -> List[Dict[str, Any]]:
+        """List all processed files with their metadata."""
+        results = []
+        for h, val in self._registry.items():
+            if isinstance(val, dict):
+                results.append({"hash": h, **val})
+            else:
+                results.append({"hash": h, "status": val})
+        return results
 
     def _save(self) -> None:
         """Save the registry to disk."""
