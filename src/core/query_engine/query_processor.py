@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import time
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -81,6 +82,8 @@ class QueryProcessor:
         Returns:
             QueryProcessResult containing keywords and filters.
         """
+        start_ms = time.time() * 1000.0
+
         normalized = (query or "").strip()
         if not normalized:
             return QueryProcessResult(keywords=[], filters={})
@@ -90,6 +93,22 @@ class QueryProcessor:
 
         if not keywords:
             keywords = self._extract_keywords(normalized)
+        
+        end_ms = time.time() * 1000.0
+        if trace:
+            fn = getattr(trace, "record_stage", None)
+            if callable(fn):
+                fn(
+                    "query_processing",
+                    start_ms=start_ms,
+                    end_ms=end_ms,
+                    data={
+                        "original_query": query,
+                        "normalized_query": normalized,
+                        "extracted_filters": filters,
+                        "extracted_keywords": keywords,
+                    },
+                )
 
         return QueryProcessResult(keywords=keywords, filters=filters)
 

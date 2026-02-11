@@ -1712,7 +1712,7 @@ observability:
 |---------|---------|------|---------|------|
 | F1 | TraceContext 增强 (finish/elapsed_ms) | [x] | 2026-02-11 | 需补充增强特性 |
 | F2 | 结构化日志 logger（JSON Lines） | [x] | 2026-02-10 | 已实现基础版 |
-| F3 | Query 链路打点 (HybridSearch) | [ ] | - | |
+| F3 | Query 链路打点 (HybridSearch) | [x] | 2026-02-11 | 已实现 QueryProcessor 打点 |
 | F4 | Ingestion 链路打点 (Pipeline) | [ ] | - | |
 | F5 | Pipeline 进度回调 (on_progress) | [ ] | - | 新增需求 |
 
@@ -2295,7 +2295,7 @@ observability:
 
 ## 阶段 F：Trace 基础设施与打点（目标：Ingestion + Query 双链路可追踪）
 
-### F1：TraceContext 增强（finish + 耗时统计 + trace_type）
+### F1：TraceContext 增强（finish + 耗时统计 + trace_type） ✅
 - **目标**：增强已有的 `TraceContext`（C5 已实现基础版），添加 `finish()` 方法、耗时统计、`trace_type` 字段（区分 query/ingestion）、`to_dict()` 序列化功能。
 - **修改文件**：
   - `src/core/trace/trace_context.py`（增强：添加 trace_type/finish/elapsed_ms/to_dict）
@@ -2314,7 +2314,7 @@ observability:
 - **测试方法**：`pytest -q tests/unit/test_trace_context.py`。
 
 
-### F2：结构化日志 logger（JSON Lines）
+### F2：结构化日志 logger（JSON Lines） ✅
 - **目标**：增强 `observability/logger.py`，支持 JSON Lines 格式输出，并实现 trace 持久化到 `logs/traces.jsonl`。
 - **修改文件**：
   - `src/observability/logger.py`（增强：添加 JSONFormatter + FileHandler）
@@ -2329,7 +2329,7 @@ observability:
 - **验收标准**：写入一条 trace 后文件新增一行合法 JSON，包含 `trace_type` 字段。
 - **测试方法**：`pytest -q tests/unit/test_jsonl_logger.py`。
 
-### F3：在 Query 链路打点
+### F3：在 Query 链路打点 ✅
 - **目标**：在 HybridSearch/Rerank 中注入 TraceContext（`trace_type="query"`），利用 B 阶段抽象接口中预留的 `trace` 参数，显式调用 `trace.record_stage()` 记录各阶段数据。
 - **前置依赖**：D5（HybridSearch）、D6（Reranker）、F1（TraceContext 增强）、F2（结构化日志）
 - **修改文件**：

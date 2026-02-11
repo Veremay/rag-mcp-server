@@ -128,4 +128,10 @@ def test_hybrid_search_returns_topk_with_text_and_metadata() -> None:
     assert all(h.record.content for h in out)
     assert all(isinstance(h.record.metadata, dict) for h in out)
     stage_names = {s.name for s in trace.stages}
-    assert {"dense", "sparse", "fusion", "rerank"} <= stage_names
+    assert {"query_processing", "dense", "sparse", "fusion", "rerank"} <= stage_names
+    
+    # Validate query_processing details
+    qp_stage = next(s for s in trace.stages if s.name == "query_processing")
+    assert qp_stage.data["normalized_query"] == "collection:demo 介绍 BM25 和 RRF"
+    assert qp_stage.data["extracted_filters"] == {"collection": "demo"}
+    assert "extracted_keywords" in qp_stage.data
