@@ -168,5 +168,44 @@ def render_query_traces_page() -> None:
             st.metric("Input", rerank_in)
             st.metric("Output", rerank_out, delta=rerank_out-rerank_in)
 
+        # Stage Hits Visualization
+        st.markdown("##### Stage Data")
+        
+        # Collect hits from stages
+        stage_hits = {}
+        # Order matters: dense, sparse, fusion, rerank
+        ordered_stages = ["dense", "sparse", "fusion", "rerank"]
+        
+        # First populate from ordered list
+        stages_map = {s["name"]: s for s in selected_trace.get("stages", [])}
+        
+        for name in ordered_stages:
+            if name in stages_map:
+                s = stages_map[name]
+                if "hits" in s.get("data", {}):
+                    stage_hits[name] = s["data"]["hits"]
+        
+        if stage_hits:
+            tabs = st.tabs([name.capitalize() for name in stage_hits.keys()])
+            for i, (name, hits) in enumerate(stage_hits.items()):
+                with tabs[i]:
+                    st.write(f"**Top {len(hits)} hits recorded**")
+                    for hit in hits:
+                        score_val = hit.get('score', 0)
+                        score_str = f"{score_val:.4f}" if isinstance(score_val, (int, float)) else str(score_val)
+                        label = f"[{score_str}] {hit.get('id', 'N/A')}"
+                        
+                        with st.expander(label):
+                            if "content" in hit and hit["content"]:
+                                st.markdown("**Content:**")
+                                st.text(hit["content"])
+                            
+                            if "metadata" in hit and hit["metadata"]:
+                                st.markdown("**Metadata:**")
+                                st.json(hit["metadata"])
+                                
+                            if "dense_rank" in hit and hit["dense_rank"] is not None:
+                                st.caption(f"Ranks - Dense: {hit['dense_rank']}, Sparse: {hit['sparse_rank']}")
+
         with st.expander("Raw JSON"):
             st.json(selected_trace)

@@ -273,7 +273,7 @@ class IngestionPipeline:
             "bm25",
             start_ms=bm25_start,
             end_ms=bm25_end,
-            metrics={"n_terms": float(len(getattr(bm25, "terms", []) or []))},
+            metrics={"n_terms": float(len(getattr(bm25, "postings", []) or []))},
         )
 
         image_start = time.time() * 1000.0
@@ -397,7 +397,7 @@ class IngestionPipeline:
         sparse_vectors: Sequence[dict[str, float]],
     ) -> BM25Index:
         indexer = self._bm25_indexer or BM25Indexer()
-        return indexer.build(
+        return indexer.upsert(
             collection=collection, chunk_ids=chunk_ids, sparse_vectors=sparse_vectors
         )
 

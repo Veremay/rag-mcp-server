@@ -91,6 +91,7 @@ class HybridSearch:
                 "query": normalized_query,
                 "filters": filters,
                 "top_k": top_k_dense,
+                "hits": _serialize_dense_hits(dense_hits),
             },
             metrics={"n_hits": float(len(dense_hits))},
         )
@@ -111,6 +112,7 @@ class HybridSearch:
                 "query": sparse_query,
                 "filters": filters,
                 "top_k": top_k_sparse,
+                "hits": _serialize_sparse_hits(sparse_hits, self._dense),
             },
             metrics={"n_hits": float(len(sparse_hits))},
         )
@@ -123,7 +125,10 @@ class HybridSearch:
             "fusion",
             start_ms=fusion_start,
             end_ms=fusion_end,
-            data={"top_k": top_k_final},
+            data={
+                "top_k": top_k_final,
+                "hits": _serialize_hybrid_hits(hydrated),
+            },
             metrics={
                 "n_hits": float(len(hydrated)),
                 "n_input": float(len(dense_hits) + len(sparse_hits)),
@@ -160,6 +165,55 @@ def _hydrate_fusion_hits(
             )
         )
     return out
+
+
+TRACE_HITS_LIMIT = 20
+
+
+def _serialize_dense_hits(hits: Sequence[DenseHit]) -> List[Dict[str, Any]]:
+    return [
+        {
+            "id": str(h.record.id),
+            "score": float(h.score),
+            "content": h.record.content[:500] if h.record.content else "",
+            "metadata": h.record.metadata,
+        }
+        for h in hits[:TRACE_HITS_LIMIT]
+    ]
+
+
+def _serialize_sparse_hits(
+    hits: Sequence[SparseHit], dense: Optional[DenseRetriever] = None
+) -> List[Dict[str, Any]]:
+    out = []
+    for h in hits[:TRACE_HITS_LIMIT]:
+        item = {
+            "id": str(h.chunk_id),
+            "score": float(h.score),
+        }
+        # Try to resolve content if dense retriever is available
+        if dense:
+            record = _resolve_record_from_dense_vector_store(dense, str(h.chunk_id))
+            if record:
+                item["content"] = record.content[:500] if record.content else ""
+                item["metadata"] = record.metadata
+        out.append(item)
+    return out
+
+
+def _serialize_hybrid_hits(hits: Sequence[HybridSearchHit]) -> List[Dict[str, Any]]:
+    return [
+        {
+            "id": str(h.chunk_id),
+            "score": float(h.score),
+            "content": h.record.content[:500] if h.record and h.record.content else "",
+            "metadata": h.record.metadata if h.record else {},
+            "dense_rank": h.dense_rank,
+            "sparse_rank": h.sparse_rank,
+        }
+        for h in hits[:TRACE_HITS_LIMIT]
+    ]
+
 
 
 def _resolve_record_from_dense_vector_store(
