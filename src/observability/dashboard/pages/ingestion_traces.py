@@ -115,5 +115,56 @@ def render_ingestion_traces_page() -> None:
                 hide_index=True
             )
             
+            st.markdown("##### Data Flow Preview")
+            for stage in selected_trace.get("stages", []):
+                name = stage.get("name")
+                data = stage.get("data", {})
+                metrics = stage.get("metrics", {})
+                
+                if not data and not metrics:
+                    continue
+                    
+                with st.expander(f"Stage: {name.upper()} ({stage.get('duration_ms', 0):.2f} ms)"):
+                    if "chunks_preview" in data:
+                        st.caption(f"Generated {int(metrics.get('n_chunks', 0))} chunks. Previewing first 3:")
+                        tabs = st.tabs([f"Chunk {i+1}" for i in range(len(data["chunks_preview"]))])
+                        for i, chunk in enumerate(data["chunks_preview"]):
+                            with tabs[i]:
+                                st.text_area(
+                                    f"ID: {chunk.get('id')}", 
+                                    chunk.get("text"), 
+                                    height=150,
+                                    key=f"preview_{name}_{i}_{chunk.get('id')}"
+                                )
+                                with st.popover("Metadata"):
+                                    st.json(chunk.get("metadata"))
+                    
+                    elif name == "integrity":
+                        c1, c2 = st.columns(2)
+                        c1.write(f"**File:** {data.get('original_filename')}")
+                        c2.write(f"**Hash:** `{data.get('hash')}`")
+                        
+                    elif name == "encode":
+                        c1, c2 = st.columns(2)
+                        c1.write(f"**Dense Model:** {data.get('dense_model')}")
+                        c2.write(f"**Embedding Dim:** {data.get('embedding_dim', 'N/A')}")
+                        st.caption("Metrics")
+                        st.json(metrics)
+                        
+                    elif name == "upsert":
+                        st.write(f"**Backend:** {data.get('method')}")
+                        if "upserted_ids" in data:
+                            st.write("**Upserted IDs (First 10):**")
+                            st.code(json.dumps(data["upserted_ids"]))
+                        st.caption("Metrics")
+                        st.json(metrics)
+                            
+                    else:
+                        st.write("Data:")
+                        st.json(data)
+                        if metrics:
+                            st.write("Metrics:")
+                            st.json(metrics)
+            
         with st.expander("Raw JSON"):
             st.json(selected_trace)

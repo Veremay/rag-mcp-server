@@ -194,11 +194,24 @@ class IngestionPipeline:
         except Exception as e:
             raise RuntimeError("IngestionPipeline splitter step failed") from e
         split_end = time.time() * 1000.0
+        
+        # Capture split preview
+        split_data = {"method": self._settings.ingestion.splitter.provider}
+        if chunks:
+            preview = []
+            for c in chunks[:3]:
+                preview.append({
+                    "id": c.id,
+                    "text": c.text[:200] + "..." if len(c.text) > 200 else c.text,
+                    "metadata": c.metadata
+                })
+            split_data["chunks_preview"] = preview
+
         record_stage(
             "split",
             start_ms=split_start,
             end_ms=split_end,
-            data={"method": self._settings.ingestion.splitter.provider},
+            data=split_data,
             metrics={"n_chunks": float(len(chunks))},
         )
 
@@ -210,11 +223,24 @@ class IngestionPipeline:
         except Exception as e:
             raise RuntimeError("IngestionPipeline transform step failed") from e
         transform_end = time.time() * 1000.0
+        
+        # Capture transform preview
+        transform_data = {"method": "chain", "transforms": [t.__class__.__name__ for t in (self._transforms or [])]}
+        if chunks:
+            preview = []
+            for c in chunks[:3]:
+                preview.append({
+                    "id": c.id,
+                    "text": c.text[:200] + "..." if len(c.text) > 200 else c.text,
+                    "metadata": c.metadata
+                })
+            transform_data["chunks_preview"] = preview
+
         record_stage(
             "transform",
             start_ms=transform_start,
             end_ms=transform_end,
-            data={"method": "chain", "transforms": [t.__class__.__name__ for t in (self._transforms or [])]},
+            data=transform_data,
             metrics={"n_chunks": float(len(chunks))},
         )
 
@@ -226,14 +252,20 @@ class IngestionPipeline:
         except Exception as e:
             raise RuntimeError("IngestionPipeline embedding step failed") from e
         encode_end = time.time() * 1000.0
+        
+        # Capture encode preview
+        encode_data = {
+            "dense_model": self._settings.embedding.model,
+            "sparse_model": "bm25",
+        }
+        if batch and batch.dense_vectors and len(batch.dense_vectors) > 0:
+            encode_data["embedding_dim"] = len(batch.dense_vectors[0])
+
         record_stage(
             "encode",
             start_ms=encode_start,
             end_ms=encode_end,
-            data={
-                "dense_model": self._settings.embedding.model,
-                "sparse_model": "bm25",
-            },
+            data=encode_data,
             metrics={
                 "n_dense": float(len(batch.dense_vectors)),
                 "n_sparse": float(len(batch.sparse_vectors)),
@@ -248,11 +280,17 @@ class IngestionPipeline:
         except Exception as e:
             raise RuntimeError("IngestionPipeline vector upsert step failed") from e
         upsert_end = time.time() * 1000.0
+        
+        # Capture upsert preview
+        upsert_data = {"method": self._settings.vector_store.backend}
+        if upsert and upsert.records:
+             upsert_data["upserted_ids"] = [r.id for r in upsert.records[:10]]
+
         record_stage(
             "upsert",
             start_ms=upsert_start,
             end_ms=upsert_end,
-            data={"method": self._settings.vector_store.backend},
+            data=upsert_data,
             metrics={"n_records": float(len(upsert.records))},
         )
 

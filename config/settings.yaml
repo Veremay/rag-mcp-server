@@ -39,6 +39,19 @@ ingestion:
     chunk_size: 1000
     chunk_overlap: 200
 
+  transform:
+    chunk_refiner:
+      enabled: false
+      enable_llm: false
+      prompt_path: "config/prompts/chunk_refinement.txt"
+    metadata_enricher:
+      enabled: false
+      enable_llm: false
+      max_tags: 5
+    image_captioner:
+      enabled: false
+      prompt_path: "config/prompts/image_captioning.txt"
+
 # Retrieval Configuration
 retrieval:
   # Options: bm25 | elasticsearch
