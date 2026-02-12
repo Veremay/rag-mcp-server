@@ -51,6 +51,9 @@ class EmbeddingSettings:
 class VisionLLMSettings:
     provider: str
     model: str
+    azure_endpoint: Optional[str] = None
+    api_key: Optional[str] = None
+    base_url: Optional[str] = None
 
 
 @dataclass

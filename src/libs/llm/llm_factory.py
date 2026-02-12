@@ -99,11 +99,10 @@ class LLMFactory:
         """
         provider = settings.vision_llm.provider.lower()
 
-        # Note: We reuse the main LLM credentials for now as VisionLLMSettings
-        # doesn't have its own auth fields.
-        api_key = settings.llm.api_key
-        base_url = settings.llm.base_url
-        azure_endpoint = settings.llm.azure_endpoint
+        # Prioritize vision_llm specific settings, fallback to main LLM settings if needed
+        api_key = settings.vision_llm.api_key or settings.llm.api_key
+        base_url = settings.vision_llm.base_url or settings.llm.base_url
+        azure_endpoint = settings.vision_llm.azure_endpoint or settings.llm.azure_endpoint
 
         if provider == "openai":
             if not api_key:
