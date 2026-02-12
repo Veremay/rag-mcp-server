@@ -84,6 +84,7 @@ class IngestionPipeline:
         *,
         collection: str,
         file_path: str | Path,
+        original_filename: Optional[str] = None,
         force: bool = False,
         trace: Optional[Any] = None,
         on_progress: Optional[Callable[[str, Dict[str, Any]], None]] = None,
@@ -137,7 +138,11 @@ class IngestionPipeline:
             "integrity",
             start_ms=integrity_start,
             end_ms=integrity_end,
-            data={"path": str(path), "hash": file_hash},
+            data={
+                "path": str(path),
+                "original_filename": original_filename or path.name,
+                "hash": file_hash,
+            },
         )
 
         if not force and self._integrity.should_skip(file_hash):
