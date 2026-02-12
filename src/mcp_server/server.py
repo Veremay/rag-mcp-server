@@ -17,6 +17,9 @@ from src.mcp_server.tools.query_knowledge_hub import (
     QueryKnowledgeHubParams,
     query_knowledge_hub,
 )
+from src.core.trace.trace_context import TraceContext
+from src.observability.logger import write_trace
+from src.core.settings import load_settings
 
 logger = logging.getLogger(__name__)
 
@@ -122,9 +125,19 @@ def _handle_query_knowledge_hub(args: Dict[str, Any]) -> Dict[str, Any]:
     if collection is not None and not isinstance(collection, str):
         raise ValueError("collection must be a string")
 
-    return query_knowledge_hub(
-        QueryKnowledgeHubParams(query=query, top_k=top_k, collection=collection)
-    )
+    trace = TraceContext(trace_type="query")
+    try:
+        return query_knowledge_hub(
+            QueryKnowledgeHubParams(query=query, top_k=top_k, collection=collection),
+            trace=trace,
+        )
+    finally:
+        try:
+            trace.finish()
+            settings = load_settings()
+            write_trace(trace.to_dict(), settings=settings)
+        except Exception as e:
+            logger.error("Failed to write trace: %s", e)
 
 
 def _handle_list_collections(args: Dict[str, Any]) -> Dict[str, Any]:
