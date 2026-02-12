@@ -17,25 +17,49 @@ def render_data_browser_page() -> None:
     # Sidebar
     st.sidebar.header("Filter & Actions")
     
-    # Get stats to know current collection
+    # 1. Fetch ALL documents to discover available collections
+    try:
+        all_docs = doc_manager.list_documents() # No collection filter = get all
+    except Exception as e:
+        st.error(f"Error listing documents: {e}")
+        return
+
+    # 2. Extract unique collections
+    available_collections = sorted(list(set(d.collection for d in all_docs)))
+    
+    # 3. Determine default selection
     try:
         stats = doc_manager.get_collection_stats()
-        current_collection = stats.collection_name
+        default_collection = stats.collection_name
     except Exception:
-        current_collection = "knowledge_hub" # Default fallback
+        default_collection = "knowledge_hub" # Default fallback
+
+    # Ensure default is in the list (so user can see it even if empty)
+    if default_collection not in available_collections:
+        available_collections.append(default_collection)
+        available_collections.sort()
         
-    collection = st.sidebar.text_input("Active Collection", value=current_collection, help="Enter collection name to filter documents (e.g. 'knowledge_hub', 'my_custom_kb')")
+    # Find index of default
+    try:
+        default_index = available_collections.index(default_collection)
+    except ValueError:
+        default_index = 0
+
+    # 4. Render Selectbox
+    collection = st.sidebar.selectbox(
+        "Active Collection", 
+        options=available_collections, 
+        index=default_index,
+        help="Select collection to browse"
+    )
     
     if st.sidebar.button("Refresh Data"):
         st.cache_data.clear()
         st.rerun()
 
-    # Main Area: List Documents
-    try:
-        docs = doc_manager.list_documents(collection=collection)
-    except Exception as e:
-        st.error(f"Error listing documents: {e}")
-        return
+    # 5. Filter docs for display
+    # We already have all_docs, just filter in memory
+    docs = [d for d in all_docs if d.collection == collection]
 
     if not docs:
         st.info("No documents found in the current collection.")
