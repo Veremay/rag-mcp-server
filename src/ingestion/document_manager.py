@@ -81,9 +81,16 @@ class DocumentManager:
         
         docs_map: Dict[str, DocumentInfo] = {}
         
-        current_collection = getattr(self.vector_store, "collection_name", collection or "default")
+        default_collection = getattr(self.vector_store, "collection_name", "default")
 
         for record in records:
+            # Determine collection for this record from metadata, fallback to store's collection
+            rec_collection = str(record.metadata.get("collection") or default_collection)
+            
+            # Filter if specific collection requested
+            if collection and rec_collection != collection:
+                continue
+
             source = str(record.metadata.get("source_path") or record.metadata.get("source") or "unknown")
             
             if source not in docs_map:
@@ -91,7 +98,7 @@ class DocumentManager:
                     source_path=source,
                     chunk_count=0,
                     image_count=0,
-                    collection=current_collection
+                    collection=rec_collection
                 )
             
             doc_info = docs_map[source]
