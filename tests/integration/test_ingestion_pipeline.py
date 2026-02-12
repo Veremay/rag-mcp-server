@@ -61,6 +61,12 @@ class MockVectorStore(BaseVectorStore):
     def query(self, vector, top_k, filters=None, trace: Optional[Any] = None):
         return list(self.store.values())[:top_k]
 
+    def delete_by_metadata(self, filters):
+        pass
+
+    def get_records_by_metadata(self, filters):
+        return []
+
 
 def _make_settings(provider: str, chunk_size: int) -> Settings:
     settings = MagicMock(spec=Settings)
