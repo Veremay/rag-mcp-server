@@ -106,7 +106,11 @@ class Reranker:
                     "timeout_s": effective_timeout,
                     "n_candidates": len(items),
                 },
-                metrics={"fallback": 1.0 if fallback else 0.0},
+                metrics={
+                    "fallback": 1.0 if fallback else 0.0,
+                    "n_input": float(len(head)),
+                    "n_output": float(len(reranked_head)) if not fallback else 0.0,
+                },
             )
 
         merged_head = _merge_preserving_recall(reranked_head, head)

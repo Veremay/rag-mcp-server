@@ -33,7 +33,8 @@ def render_query_traces_page() -> None:
         stages = t.get("stages", [])
         for s in stages:
             if s["name"] == "query_processing":
-                query_text = s.get("data", {}).get("normalized_query", "N/A")
+                data = s.get("data", {})
+                query_text = data.get("original_query") or data.get("effective_query") or data.get("normalized_query") or "N/A"
                 break
         
         t["_query_text"] = query_text # Store for display

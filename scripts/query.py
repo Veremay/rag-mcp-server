@@ -138,10 +138,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.collection and "collection:" not in effective_query:
         effective_query = f"collection:{args.collection} {effective_query}".strip()
 
+    qp_start = time.time() * 1000.0
     processed = qp.process(effective_query)
+    qp_end = time.time() * 1000.0
     
     trace.record_stage(
         "query_processing",
+        start_ms=qp_start,
+        end_ms=qp_end,
         data={
             "original_query": query,
             "effective_query": effective_query,
@@ -232,7 +236,10 @@ def main(argv: list[str] | None = None) -> int:
             "fusion",
             start_ms=fusion_start,
             end_ms=fusion_end,
-            metrics={"n_output": float(len(fused_hits))},
+            metrics={
+                "n_output": float(len(fused_hits)),
+                "n_input": float(len(dense_hits) + len(sparse_hits)),
+            },
         )
 
         if args.verbose:
@@ -282,6 +289,7 @@ def main(argv: list[str] | None = None) -> int:
         _print_stage("🎯", f"Top {final_top_k} Results:")
         _print_ranked_items(final_items, top_k=final_top_k)
 
+        trace.finish()
         write_trace(trace.to_dict(), settings=settings)
 
         return 0
