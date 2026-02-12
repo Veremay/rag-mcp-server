@@ -3,22 +3,52 @@
     {
       "query": "Modular RAG 的核心设计原则是什么？",
       "expected_chunk_ids": [],
-      "expected_sources": ["DEV_SPEC.md"]
+      "expected_sources": [
+        "DEV_SPEC.md"
+      ]
     },
     {
       "query": "如何配置 Ollama 作为 LLM 后端？",
       "expected_chunk_ids": [],
-      "expected_sources": ["specs/03-tech-stack.md", "DEV_SPEC.md"]
+      "expected_sources": [
+        "specs/03-tech-stack.md",
+        "DEV_SPEC.md"
+      ]
     },
     {
       "query": "Dashboard 的主要功能有哪些？",
       "expected_chunk_ids": [],
-      "expected_sources": ["DEV_SPEC.md"]
+      "expected_sources": [
+        "DEV_SPEC.md"
+      ]
     },
     {
       "query": "如何运行集成测试？",
       "expected_chunk_ids": [],
-      "expected_sources": ["DEV_SPEC.md"]
+      "expected_sources": [
+        "DEV_SPEC.md"
+      ]
+    },
+    {
+      "query": "候选人在金舟数据开发管理平台项目中使用了哪些技术栈？",
+      "expected_chunk_ids": [],
+      "expected_sources": [
+        "docs/前端.pdf"
+      ]
+    },
+    {
+      "query": "候选人在北京凯特伟业科技有限公司的主要工作职责是什么？",
+      "expected_chunk_ids": [],
+      "expected_sources": [
+        "docs/前端.pdf"
+      ]
+    },
+    {
+      "query": "候选人有哪些项目管理或团队协作的经验？",
+      "expected_chunk_ids": [],
+      "expected_sources": [
+        "docs/前端.pdf"
+      ]
     }
   ]
 }
