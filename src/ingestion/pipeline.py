@@ -370,7 +370,8 @@ class IngestionPipeline:
     ) -> BatchProcessResult:
         dense_encoder = self._dense_encoder or DenseEncoder(self._settings)
         sparse_encoder = self._sparse_encoder or SparseEncoder()
-        batcher = self._batch_processor or BatchProcessor(batch_size=16)
+        # Default batch size reduced to 10 to comply with strict API limits (e.g. SiliconFlow/OpenAI)
+        batcher = self._batch_processor or BatchProcessor(batch_size=10)
         return batcher.process(
             chunks,
             dense_encoder=dense_encoder,
