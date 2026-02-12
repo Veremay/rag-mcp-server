@@ -32,3 +32,34 @@ Sparse Retrieval (BM25) 再次出现命中数为 0 的情况，导致 Trace 日�
 3.  **数据恢复**：编写并运行 `scripts/rebuild_bm25.py`，从 Vector Store (Chroma/Jsonl) 中读取所有 Chunk 重新生成完整的 BM25 索引。
 
 ---
+
+## Problem 3
+**Time:** 2026-02-12 11:35:00
+
+### Description
+关于 Ingestion Transforms (`ChunkRefiner`, `MetadataEnricher`, `ImageCaptioner`) 在关闭 LLM 增强 (`enable_llm: false`) 时的降级逻辑与行为确认。
+
+### Cause
+用户需要了解在无 LLM 资源或出于成本/速度考虑关闭 LLM 时，系统如何处理数据清洗与元数据生成，以及功能会受到何种程度的影响。
+
+### Solution
+明确了各组件的 Rule-based Fallback 实现：
+1.  **ChunkRefiner**: 仅进行正则清洗（Regex Cleaning）。移除页码标识（如 `Page X of Y`）、孤立数字行及首尾空白，不进行任何语义层面的文本润色或断句修复。
+2.  **MetadataEnricher**: 采用统计与截断策略。
+    *   **Title**: 提取第一行非空文本。
+    *   **Summary**: 直接截取文本前 N 个字符（由 `max_summary_chars` 控制）。
+    *   **Tags**: 基于词频统计（Frequency-based），取前 800 字符中出现频率最高的词（过滤停用词）。
+3.  **ImageCaptioner**: **完全失效**。若未启用 Vision LLM，该步骤直接跳过，不做任何处理，图片内容将无法被索引。
+
+#### 功能对比表
+| 组件 | 开启 LLM (Enable) | 关闭 LLM (Disable) | 差异 |
+| :--- | :--- | :--- | :--- |
+| **ChunkRefiner** | 智能重写，修复断句、指代不清，优化语义 | **仅正则清洗**，去除页码和多余空行 | 语义质量大幅下降 |
+| **MetadataEnricher** | 深度理解内容，生成精准摘要、标题和主题标签 | **机械截取**首行和前 N 字符，基于**词频**生成标签 | 元数据准确性和概括性下降 |
+| **ImageCaptioner** | 视觉模型识别图片内容并生成描述文本 | **完全跳过**，不做任何处理 | 失去图片检索能力 |
+
+
+#### 总结
+
+如果不开启 LLM， TRANSFORM 阶段本质上退化为一个**“极其轻量的去空格工具 + 简单的元数据提取器”**。如果您的源文档本身比较干净（没有页眉页脚噪音），那么 Split 输出 = Transform 输出 是完全符合预期
+---
