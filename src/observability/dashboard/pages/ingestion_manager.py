@@ -120,6 +120,7 @@ def _handle_ingestion(uploaded_file: Any, collection_name: str, force: bool) -> 
         result = pipeline.ingest(
             collection=collection_name,
             file_path=tmp_path,
+            original_filename=uploaded_file.name,
             force=force,
             on_progress=on_progress
         )

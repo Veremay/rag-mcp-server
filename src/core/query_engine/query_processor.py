@@ -28,6 +28,7 @@ class QueryProcessor:
         allowed_filter_keys: Optional[Set[str]] = None,
     ):
         self._stopwords = stopwords or {
+            # English Stopwords
             "the",
             "and",
             "for",
@@ -62,6 +63,29 @@ class QueryProcessor:
             "as",
             "is",
             "it",
+            # Chinese Stopwords (Particles & Common Verbs)
+            "的",
+            "了",
+            "和",
+            "是",
+            "就",
+            "都",
+            "而",
+            "及",
+            "与",
+            "着",
+            "之",
+            "用",
+            "于",
+            "把",
+            "在",
+            "有",
+            # Common Question Words & Suffixes
+            "什么",
+            "怎么",
+            "哪里",
+            "为什么",
+            "地址",
         }
         self._allowed_filter_keys = allowed_filter_keys or {
             "collection",
@@ -136,8 +160,37 @@ class QueryProcessor:
 
         words = re.findall(r"[A-Za-z]{2,}", query.lower())
         numbers = re.findall(r"\d{2,}", query)
-        zh = re.findall(r"[\u4e00-\u9fff]{2,}", query)
         acronyms = re.findall(r"[A-Za-z]{2,}\d+", query.lower())
+
+        # Enhanced Chinese Processing
+        # 1. Extract continuous Chinese chunks
+        zh_chunks = re.findall(r"[\u4e00-\u9fff]+", query)
+        zh_tokens: List[str] = []
+        
+        # Build stopword regex for Chinese
+        # Sort by length desc to match longest stopwords first
+        zh_stops = [s for s in self._stopwords if re.search(r"[\u4e00-\u9fff]", s)]
+        sorted_stops = sorted(zh_stops, key=len, reverse=True)
+        
+        if sorted_stops:
+            stop_pattern = re.compile("|".join(map(re.escape, sorted_stops)))
+        else:
+            stop_pattern = None
+
+        for chunk in zh_chunks:
+            # Split chunk by Chinese stopwords
+            if stop_pattern:
+                # filter(None, ...) removes empty strings from split result
+                sub_chunks = list(filter(None, stop_pattern.split(chunk)))
+            else:
+                sub_chunks = [chunk]
+
+            for sub in sub_chunks:
+                zh_tokens.append(sub)
+                # If sub length > 1, also add unigrams to improve recall
+                # (e.g. "刘泽鹏" -> "刘", "泽", "鹏")
+                if len(sub) > 1:
+                    zh_tokens.extend(list(sub))
 
         tokens: List[str] = []
         for w in words:
@@ -146,7 +199,7 @@ class QueryProcessor:
             tokens.append(w)
         tokens.extend(acronyms)
         tokens.extend(numbers)
-        tokens.extend(zh)
+        tokens.extend(zh_tokens)
 
         seen: Set[str] = set()
         deduped: List[str] = []

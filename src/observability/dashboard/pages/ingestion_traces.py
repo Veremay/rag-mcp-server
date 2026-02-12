@@ -43,12 +43,18 @@ def render_ingestion_traces_page() -> None:
         
         # Calculate stats from stages
         n_chunks = 0
-        doc_id = "N/A"
+        file_name = "N/A"
         
         stages = t.get("stages", [])
         for s in stages:
-            if s["name"] == "load" and "doc_id" in s.get("data", {}):
-                doc_id = s["data"]["doc_id"]
+            if s["name"] == "integrity":
+                data = s.get("data", {})
+                file_name = data.get("original_filename")
+                if not file_name:
+                    path = data.get("path", "")
+                    if path:
+                        file_name = path.split("/")[-1]
+
             if s["name"] == "split" and "n_chunks" in s.get("metrics", {}):
                 n_chunks = s["metrics"]["n_chunks"]
         
@@ -56,7 +62,7 @@ def render_ingestion_traces_page() -> None:
             "Trace ID": t["trace_id"],
             "Time": dt_str,
             "Duration (ms)": t.get("duration_ms", 0),
-            "Docs": doc_id,
+            "File": file_name,
             "Chunks": n_chunks,
             "Status": "✅" if t.get("finished_ms") else "❌"
         })
