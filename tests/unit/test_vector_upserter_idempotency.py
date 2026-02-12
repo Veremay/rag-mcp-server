@@ -19,6 +19,12 @@ class InMemoryVectorStore(BaseVectorStore):
     def query(self, vector, top_k, filters=None, trace=None):
         raise NotImplementedError
 
+    def delete_by_metadata(self, filters):
+        pass
+
+    def get_records_by_metadata(self, filters):
+        return []
+
 
 def test_same_chunk_twice_produces_same_id() -> None:
     vector_store = InMemoryVectorStore()

@@ -50,6 +50,12 @@ class FakeVectorStore(BaseVectorStore):
         ]
         return records[:top_k]
 
+    def delete_by_metadata(self, filters):
+        pass
+
+    def get_records_by_metadata(self, filters):
+        return []
+
 
 def _settings() -> Settings:
     return Settings(

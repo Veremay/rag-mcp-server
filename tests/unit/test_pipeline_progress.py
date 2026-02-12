@@ -76,6 +76,7 @@ def test_pipeline_calls_on_progress_callback(mock_settings, mock_loader, tmp_pat
     # Mock return value of bm25 build
     mock_bm25 = Mock()
     mock_bm25.terms = ["term1", "term2"]
+    mock_bm25.postings = {"term1": [1], "term2": [2]}
     pipeline._build_bm25.return_value = mock_bm25
     
     pipeline._store_images = Mock()
@@ -141,6 +142,7 @@ def test_pipeline_on_progress_none_safe(mock_settings, mock_loader, tmp_path):
     pipeline._build_bm25 = Mock()
     mock_bm25 = Mock()
     mock_bm25.terms = []
+    mock_bm25.postings = []
     pipeline._build_bm25.return_value = mock_bm25
     pipeline._store_images = Mock()
     

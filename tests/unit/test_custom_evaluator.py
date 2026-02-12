@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -6,6 +6,7 @@ from src.core.settings import EvaluationSettings, Settings
 from src.libs.evaluator.base_evaluator import BaseEvaluator
 from src.libs.evaluator.custom_evaluator import CustomEvaluator
 from src.libs.evaluator.evaluator_factory import EvaluatorFactory
+from src.observability.evaluation.composite_evaluator import CompositeEvaluator
 
 
 def test_custom_evaluator_metrics():
@@ -56,13 +57,17 @@ def test_factory_creates_custom_evaluator():
 
 
 def test_factory_creates_custom_evaluator_mixed():
-    """Test factory prioritizes custom if present in list."""
+    """Test factory creates composite evaluator if both are present."""
     settings = MagicMock(spec=Settings)
     settings.evaluation = MagicMock(spec=EvaluationSettings)
     settings.evaluation.backends = ["ragas", "custom"]
+    settings.evaluation.metrics = []
 
-    evaluator = EvaluatorFactory.create(settings)
-    assert isinstance(evaluator, CustomEvaluator)
+    # Mock RagasEvaluator to avoid import error during instantiation
+    with patch("src.libs.evaluator.evaluator_factory.RagasEvaluator") as MockRagas:
+        evaluator = EvaluatorFactory.create(settings)
+        assert isinstance(evaluator, CompositeEvaluator)
+        assert MockRagas.called
 
 
 def test_factory_raises_error_on_unsupported():

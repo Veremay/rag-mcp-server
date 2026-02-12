@@ -21,6 +21,12 @@ class MockVectorStore(BaseVectorStore):
         # Dummy implementation: return all values
         return list(self.store.values())[:top_k]
 
+    def delete_by_metadata(self, filters):
+        pass
+
+    def get_records_by_metadata(self, filters):
+        return []
+
 
 @pytest.fixture
 def mock_settings():
