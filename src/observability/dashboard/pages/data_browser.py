@@ -24,7 +24,7 @@ def render_data_browser_page() -> None:
     except Exception:
         current_collection = "knowledge_hub" # Default fallback
         
-    collection = st.sidebar.text_input("Active Collection", value=current_collection, disabled=True)
+    collection = st.sidebar.text_input("Active Collection", value=current_collection, help="Enter collection name to filter documents (e.g. 'knowledge_hub', 'my_custom_kb')")
     
     if st.sidebar.button("Refresh Data"):
         st.cache_data.clear()

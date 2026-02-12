@@ -142,10 +142,10 @@ class JsonlStore(BaseVectorStore):
         Returns:
             List of VectorRecord objects.
         """
-        if not filters:
-            return []
-
         records = self._load_all()
+        if not filters:
+            return list(records.values())
+
         matching_records = []
         for rid, record in records.items():
             if _metadata_match(record.metadata, filters):
