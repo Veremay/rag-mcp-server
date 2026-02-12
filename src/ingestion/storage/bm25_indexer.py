@@ -74,6 +74,72 @@ class BM25Indexer:
         self._k1 = float(k1)
         self._b = float(b)
 
+    def upsert(
+        self,
+        *,
+        collection: str,
+        chunk_ids: Sequence[str],
+        sparse_vectors: Sequence[Mapping[str, float]],
+    ) -> BM25Index:
+        """
+        Update the index with new documents (incremental upsert).
+        If the index does not exist, it will be created.
+        """
+        if len(chunk_ids) != len(sparse_vectors):
+            raise ValueError(
+                f"chunk_ids and sparse_vectors length mismatch: {len(chunk_ids)} != {len(sparse_vectors)}"
+            )
+
+        try:
+            index = self.load(collection=collection)
+        except (OSError, ValueError, FileNotFoundError):
+            return self.build(
+                collection=collection, chunk_ids=chunk_ids, sparse_vectors=sparse_vectors
+            )
+
+        doc_len = dict(index.doc_len)
+        postings = {term: dict(docs) for term, docs in index.postings.items()}
+        total_len = sum(doc_len.values())
+
+        # Note: This does not remove terms if a document is updated and no longer has them.
+        # It assumes chunks are mostly new or additive.
+        # For full correctness, we would need a forward index or iterate all postings to clear old doc entries.
+        
+        for chunk_id, vec in zip(chunk_ids, sparse_vectors, strict=True):
+            # Update document length
+            dl = int(sum(float(v) for v in vec.values()))
+            if chunk_id in doc_len:
+                total_len -= doc_len[chunk_id]
+            doc_len[chunk_id] = dl
+            total_len += dl
+
+            # Update postings
+            for term, tf in vec.items():
+                if not term:
+                    continue
+                term = str(term).lower()
+                postings.setdefault(term, {})[chunk_id] = float(tf)
+
+        avgdl = float(total_len) / float(len(doc_len)) if doc_len else 0.0
+        n_docs = float(len(doc_len))
+
+        idf: Dict[str, float] = {}
+        for term, posting in postings.items():
+            df = float(len(posting))
+            idf[term] = math.log1p((n_docs - df + 0.5) / (df + 0.5))
+
+        new_index = BM25Index(
+            k1=self._k1,
+            b=self._b,
+            token_pattern=self._token_pattern,
+            doc_len=doc_len,
+            avgdl=avgdl,
+            postings=postings,
+            idf=idf,
+        )
+        self.persist(collection=collection, index=new_index)
+        return new_index
+
     def build(
         self,
         *,

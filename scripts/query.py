@@ -100,9 +100,12 @@ def main(argv: list[str] | None = None) -> int:
     from src.core.query_engine.fusion import RRFFusion
     from src.core.query_engine.hybrid_search import (
         _resolve_record_from_dense_vector_store,
+        _serialize_dense_hits,
+        _serialize_sparse_hits,
+        _serialize_hybrid_hits,
     )
     from src.core.query_engine.query_processor import QueryProcessor
-    from src.core.query_engine.reranker import Reranker
+    from src.core.query_engine.reranker import Reranker, _serialize_rerank_hits
     from src.core.query_engine.sparse_retriever import SparseRetriever
     from src.core.settings import load_settings
     from src.core.trace.trace_context import TraceContext
@@ -189,7 +192,11 @@ def main(argv: list[str] | None = None) -> int:
             start_ms=dense_start,
             end_ms=dense_end,
             metrics={"n_hits": float(len(dense_hits))},
-            data={"query": effective_query, "top_k": dense_top_k},
+            data={
+                "query": effective_query,
+                "top_k": dense_top_k,
+                "hits": _serialize_dense_hits(dense_hits),
+            },
         )
 
         if args.verbose:
@@ -214,7 +221,11 @@ def main(argv: list[str] | None = None) -> int:
             start_ms=sparse_start,
             end_ms=sparse_end,
             metrics={"n_hits": float(len(sparse_hits))},
-            data={"query": sparse_query, "top_k": sparse_top_k},
+            data={
+                "query": sparse_query,
+                "top_k": sparse_top_k,
+                "hits": _serialize_sparse_hits(sparse_hits, dense),
+            },
         )
 
         if args.verbose:
@@ -232,15 +243,6 @@ def main(argv: list[str] | None = None) -> int:
         fusion_start = time.time() * 1000.0
         fused_hits = fusion.fuse(dense_hits, sparse_hits, top_k=need_candidates)
         fusion_end = time.time() * 1000.0
-        trace.record_stage(
-            "fusion",
-            start_ms=fusion_start,
-            end_ms=fusion_end,
-            metrics={
-                "n_output": float(len(fused_hits)),
-                "n_input": float(len(dense_hits) + len(sparse_hits)),
-            },
-        )
 
         if args.verbose:
             print(f"   - Combined into {len(fused_hits)} candidates.")
@@ -266,6 +268,28 @@ def main(argv: list[str] | None = None) -> int:
                         "score": float(getattr(fh, "score", 0.0)),
                     }
                 )
+
+        trace.record_stage(
+            "fusion",
+            start_ms=fusion_start,
+            end_ms=fusion_end,
+            metrics={
+                "n_output": float(len(fused_hits)),
+                "n_input": float(len(dense_hits) + len(sparse_hits)),
+            },
+            data={
+                "top_k": need_candidates,
+                "hits": [
+                    {
+                        "id": h["chunk_id"],
+                        "score": h["score"],
+                        "content": h["text"][:500],
+                        "metadata": h["metadata"],
+                    }
+                    for h in hydrated[:20]
+                ],
+            },
+        )
 
         if not hydrated:
             print("❌  未找到相关文档，请先运行 ingest.py 摄取数据。")

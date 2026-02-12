@@ -83,6 +83,7 @@ class Reranker:
         effective_timeout = self._timeout_s if timeout_s is None else timeout_s
         start_ms = time.time() * 1000.0
         fallback = False
+        reranked_head = []
         try:
             reranked_head = _call_with_timeout(
                 self._backend.rerank,
@@ -97,6 +98,9 @@ class Reranker:
             return RerankResult(items=items, fallback=True)
         finally:
             end_ms = time.time() * 1000.0
+            
+            hits_to_log = reranked_head if not fallback else head
+            
             record_stage(
                 "rerank",
                 start_ms=start_ms,
@@ -105,6 +109,7 @@ class Reranker:
                     "top_m": effective_top_m,
                     "timeout_s": effective_timeout,
                     "n_candidates": len(items),
+                    "hits": _serialize_rerank_hits(hits_to_log),
                 },
                 metrics={
                     "fallback": 1.0 if fallback else 0.0,
@@ -154,3 +159,48 @@ def _merge_preserving_recall(reranked: Sequence[T], original: Sequence[T]) -> Li
         out.append(x)
 
     return out
+
+
+TRACE_HITS_LIMIT = 20
+
+
+def _serialize_rerank_hits(hits: Sequence[Any]) -> List[dict[str, Any]]:
+    out = []
+    for h in hits[:TRACE_HITS_LIMIT]:
+        # Handle dictionary (from scripts/query.py)
+        if isinstance(h, dict):
+            item = {
+                "id": str(h.get("chunk_id") or h.get("id") or ""),
+                "score": float(h.get("score") or 0.0),
+                "content": str(h.get("text") or h.get("content") or "")[:500],
+                "metadata": h.get("metadata", {}),
+            }
+            out.append(item)
+            continue
+
+        # Try HybridSearchHit pattern (duck typing)
+        if hasattr(h, "chunk_id") and hasattr(h, "score"):
+            item = {
+                "id": str(h.chunk_id),
+                "score": float(h.score) if h.score is not None else 0.0,
+            }
+            if hasattr(h, "record") and h.record:
+                if hasattr(h.record, "content"):
+                    item["content"] = h.record.content[:500] if h.record.content else ""
+                if hasattr(h.record, "metadata"):
+                    item["metadata"] = h.record.metadata
+            out.append(item)
+        # Try VectorRecord pattern
+        elif hasattr(h, "id") and hasattr(h, "content"):
+            item = {
+                "id": str(h.id),
+                "content": h.content[:500] if h.content else "",
+                "metadata": getattr(h, "metadata", {}),
+            }
+            out.append(item)
+        else:
+            # Fallback for unknown objects
+            safe_repr = str(h)[:200]
+            out.append({"repr": safe_repr})
+    return out
+
