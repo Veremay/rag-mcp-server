@@ -109,7 +109,9 @@ class Reranker:
                 metrics={
                     "fallback": 1.0 if fallback else 0.0,
                     "n_input": float(len(head)),
-                    "n_output": float(len(reranked_head)) if not fallback else 0.0,
+                    "n_output": float(len(reranked_head))
+                    if not fallback
+                    else float(len(head)),
                 },
             )
 

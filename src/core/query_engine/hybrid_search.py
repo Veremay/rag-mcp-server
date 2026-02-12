@@ -124,7 +124,11 @@ class HybridSearch:
             start_ms=fusion_start,
             end_ms=fusion_end,
             data={"top_k": top_k_final},
-            metrics={"n_hits": float(len(hydrated))},
+            metrics={
+                "n_hits": float(len(hydrated)),
+                "n_input": float(len(dense_hits) + len(sparse_hits)),
+                "n_output": float(len(hydrated)),
+            },
         )
         return hydrated
 
