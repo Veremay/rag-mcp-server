@@ -1742,7 +1742,7 @@ observability:
 | 任务编号 | 任务名称 | 状态 | 完成日期 | 备注 |
 |---------|---------|------|---------|------|
 | I1 | E2E：MCP Client 侧调用模拟 | [x] | 2026-02-13 | 原 G1 |
-| I2 | E2E：Dashboard 冒烟测试 | [ ] | - | |
+| I2 | E2E：Dashboard 冒烟测试 | [x] | 2026-02-13 | |
 | I3 | 完善 README | [ ] | - | 原 G3 |
 | I4 | 接口一致性契约测试 | [ ] | - | 原 G4 |
 | I5 | 全链路 E2E 验收 | [ ] | - | |
@@ -1761,8 +1761,8 @@ observability:
 | 阶段 F | 5 | 5 | 100% |
 | 阶段 G | 6 | 6 | 100% |
 | 阶段 H | 5 | 5 | 100% |
-| 阶段 I | 5 | 1 | 20% |
-| **总计** | **66** | **62** | **94%** |
+| 阶段 I | 5 | 2 | 40% |
+| **总计** | **66** | **63** | **95%** |
 
 
 ---
@@ -2544,7 +2544,7 @@ observability:
 - **验收标准**：完整走通 query_knowledge_hub 并返回 citations。
 - **测试方法**：`pytest -q tests/e2e/test_mcp_client.py`。
 
-### I2：E2E：Dashboard 冒烟测试
+### I2：E2E：Dashboard 冒烟测试 ✅
 - **目标**：验证 Dashboard 各页面在有数据时可正常渲染、无 Python 异常。
 - **修改文件**：
   - `tests/e2e/test_dashboard_smoke.py`（新增）
