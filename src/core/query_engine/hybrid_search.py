@@ -252,10 +252,18 @@ def _resolve_record_from_dense_vector_store(
         if isinstance(raw, dict) and raw.get("ids"):
             ids = raw.get("ids") or []
             if len(ids) > 0 and ids[0] == chunk_id:
-                embeddings = (raw.get("embeddings") or [[]])[0] or []
+                raw_embeddings = raw.get("embeddings")
+                if raw_embeddings is not None and len(raw_embeddings) > 0:
+                    embeddings = raw_embeddings[0]
+                else:
+                    embeddings = []
+                
                 # Convert numpy array to list if needed
                 if hasattr(embeddings, "tolist"):
                      embeddings = embeddings.tolist()
+                
+                if embeddings is None:
+                    embeddings = []
 
                 documents = (raw.get("documents") or [""])[0] or ""
                 metadatas = (raw.get("metadatas") or [{}])[0] or {}

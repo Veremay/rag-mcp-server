@@ -6,6 +6,12 @@ import yaml
 from src.core.settings import LLMSettings, Settings, load_settings
 
 
+@pytest.fixture(autouse=True)
+def clean_env(monkeypatch):
+    """Ensure MODULAR_RAG_CONFIG_PATH does not interfere with tests."""
+    monkeypatch.delenv("MODULAR_RAG_CONFIG_PATH", raising=False)
+
+
 @pytest.fixture
 def valid_config_path(tmp_path):
     config = {

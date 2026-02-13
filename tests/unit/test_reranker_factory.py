@@ -79,3 +79,26 @@ def test_factory_create_cross_encoder_reranker(mock_load_model, mock_settings):
 
     assert isinstance(reranker, CrossEncoderReranker)
     assert reranker.model_name == "test/model"
+
+
+def test_none_reranker_boundaries():
+    """Test NoneReranker with boundary conditions."""
+    reranker = NoneReranker()
+    query = "test"
+    
+    # 1. Empty candidates
+    assert reranker.rerank(query, []) == []
+    
+    # 2. Candidates fewer than top_k
+    candidates = ["a", "b"]
+    assert len(reranker.rerank(query, candidates, top_k=10)) == 2
+    
+    # 3. Candidates equal to top_k
+    assert len(reranker.rerank(query, candidates, top_k=2)) == 2
+    
+    # 4. Top_k=0 (should return empty list)
+    assert reranker.rerank(query, candidates, top_k=0) == []
+    
+    # 5. Very large input (should work fast for NoneReranker)
+    large_candidates = ["doc"] * 100
+    assert len(reranker.rerank(query, large_candidates, top_k=50)) == 50

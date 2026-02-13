@@ -22,10 +22,63 @@ class MockVectorStore(BaseVectorStore):
         return list(self.store.values())[:top_k]
 
     def delete_by_metadata(self, filters):
-        pass
+        """Mock delete by metadata implementation."""
+        keys_to_delete = []
+        for key, record in self.store.items():
+            match = True
+            for k, v in filters.items():
+                if record.metadata.get(k) != v:
+                    match = False
+                    break
+            if match:
+                keys_to_delete.append(key)
+        
+        for key in keys_to_delete:
+            del self.store[key]
 
     def get_records_by_metadata(self, filters):
-        return []
+        """Mock get by metadata implementation."""
+        results = []
+        for record in self.store.values():
+            match = True
+            for k, v in filters.items():
+                if record.metadata.get(k) != v:
+                    match = False
+                    break
+            if match:
+                results.append(record)
+        return results
+
+
+def test_vector_store_delete_contract():
+    """Test delete_by_metadata contract."""
+    store = MockVectorStore()
+    
+    # Setup data
+    records = [
+        VectorRecord(id="1", embedding=[0.1, 0.1], content="a", metadata={"source": "doc1", "type": "pdf"}),
+        VectorRecord(id="2", embedding=[0.2, 0.2], content="b", metadata={"source": "doc1", "type": "txt"}),
+        VectorRecord(id="3", embedding=[0.3, 0.3], content="c", metadata={"source": "doc2", "type": "pdf"}),
+    ]
+    store.upsert(records)
+    
+    # 1. Delete by exact match (multiple fields)
+    store.delete_by_metadata({"source": "doc1", "type": "pdf"})
+    assert "1" not in store.store
+    assert "2" in store.store
+    assert "3" in store.store
+    
+    # 2. Delete by partial match (single field)
+    store.delete_by_metadata({"source": "doc2"})
+    assert "3" not in store.store
+    
+    # 3. Delete non-matching (no-op)
+    store.delete_by_metadata({"source": "non-existent"})
+    assert len(store.store) == 1  # Record 2 remains
+    
+    # 4. Verify idempotency (delete again)
+    store.delete_by_metadata({"source": "doc2"})
+    assert len(store.store) == 1
 
 
 @pytest.fixture
