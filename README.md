@@ -125,30 +125,141 @@
 ## 🚀 快速开始
 
 ```bash
-# 克隆项目
+# 1. 克隆项目
 git clone https://github.com/yourusername/Modular-RAG-MCP-Server.git
 cd Modular-RAG-MCP-Server
 
-# 创建虚拟环境（Python 3.10+）
+# 2. 创建并激活虚拟环境（Python 3.10+）
 python -m venv .venv
+source .venv/bin/activate  # macOS/Linux
+# .\.venv\Scripts\Activate.ps1  # Windows
 
-# 激活虚拟环境
-# Windows PowerShell: .\.venv\Scripts\Activate.ps1
-# macOS/Linux: source .venv/bin/activate
-
-# 安装依赖（从 pyproject.toml 安装）
+# 3. 安装依赖
 python -m pip install -U pip
 python -m pip install -e ".[dev]"
 
-# 配置环境变量（复制配置模板）
+# 4. 配置环境变量
 cp .env.example .env
-# 编辑 .env 文件，填入您的 API Keys
+# 编辑 .env 文件，填入您的 API Keys (如 ALIYUN_API_KEY 等)
 
-# 运行服务
+# 5. 首次数据摄取（测试）
+python scripts/ingest.py --path tests/fixtures/sample_documents/ --collection test
+
+# 6. 运行 MCP Server
 python src/main.py
 ```
 
-详细的环境配置、部署指南与使用示例请参考 [DEV_SPEC.md](DEV_SPEC.md)。
+---
+
+## ⚙️ 配置说明
+
+核心配置文件位于 `config/settings.yaml`，支持热重载。主要配置项说明：
+
+| 配置模块 | 关键字段 | 说明 |
+|---------|---------|------|
+| **LLM** | `llm.provider` | 支持 `openai`, `azure`, `ollama`。使用 `base_url` 可对接 DeepSeek/Moonshot 等兼容接口。 |
+| **Embedding** | `embedding.provider` | 向量模型提供商，支持 `openai`, `ollama`, `local`。 |
+| **Vector Store** | `vector_store.backend` | 向量库后端，目前支持 `chroma` (本地持久化)。 |
+| **Ingestion** | `ingestion.splitter` | 文档切分策略，推荐 `recursive`。 |
+| **Retrieval** | `retrieval.fusion_algorithm` | 混合检索融合算法，默认 `rrf` (Reciprocal Rank Fusion)。 |
+| **Rerank** | `rerank.backend` | 精排模型，支持 `cross_encoder` (本地) 或 `llm` (云端)。 |
+
+---
+
+## 🔌 MCP 配置示例
+
+将本项目作为 MCP Server 集成到您的 AI 助手：
+
+### 1. Claude Desktop
+编辑 `~/Library/Application Support/Claude/claude_desktop_config.json`：
+
+```json
+{
+  "mcpServers": {
+    "modular-rag": {
+      "command": "/absolute/path/to/project/.venv/bin/python",
+      "args": ["/absolute/path/to/project/src/main.py"],
+      "env": {
+        "ALIYUN_API_KEY": "sk-xxx",
+        "ALIYUN_BASE_URL": "https://..."
+      }
+    }
+  }
+}
+```
+
+### 2. GitHub Copilot / Cursor
+编辑项目根目录下的 `.vscode/settings.json` 或工具特定的 MCP 配置文件：
+
+```json
+{
+  "mcp.servers": {
+    "modular-rag": {
+      "command": "python",
+      "args": ["src/main.py"],
+      "env": { ... }
+    }
+  }
+}
+```
+
+---
+
+## 📊 Dashboard 使用指南
+
+本项目包含一个基于 Streamlit 的可视化管理平台。
+
+**启动 Dashboard：**
+```bash
+streamlit run src/observability/dashboard/app.py
+```
+
+**功能模块：**
+1.  **Overview (总览)**：查看系统运行状态、文档总量、最近活动。
+2.  **Data Browser (数据浏览器)**：浏览已摄入的文档库，查看 Chunk 切分详情与 Metadata。
+3.  **Ingestion Manager (摄取管理)**：上传文件触发处理流程，支持进度实时追踪。
+4.  **Ingestion Traces (摄取追踪)**：查看历史摄取任务的耗时瀑布图，定位性能瓶颈。
+5.  **Query Traces (查询追踪)**：可视化查询全链路（检索 -> 排序 -> 生成），对比 Dense/Sparse 结果。
+6.  **Evaluation (评估面板)**：运行 Golden Test Set，查看 RAG 性能指标 (Hit Rate, MRR)。
+
+---
+
+## 🧪 运行测试
+
+本项目包含完整的测试金字塔：
+
+```bash
+# 运行所有测试
+pytest
+
+# 仅运行单元测试 (Unit Tests)
+pytest tests/unit
+
+# 仅运行集成测试 (Integration Tests)
+pytest tests/integration
+
+# 仅运行端到端测试 (E2E Tests)
+pytest tests/e2e
+
+# 运行 Dashboard 冒烟测试
+pytest tests/e2e/test_dashboard_smoke.py
+```
+
+---
+
+## ❓ 常见问题 (FAQ)
+
+**Q: 安装依赖时报错 `ModuleNotFoundError`？**
+A: 请确保已激活虚拟环境 (`source .venv/bin/activate`) 且 pip 版本已更新。
+
+**Q: 启动 Server 提示 `API Key not found`？**
+A: 检查 `.env` 文件是否存在且已填入 Key，或者直接在 `config/settings.yaml` 中硬编码（不推荐）。
+
+**Q: Dashboard 无法连接到 Server？**
+A: Dashboard 直接读取本地数据库与日志文件，无需 Server 进程启动即可查看历史数据。但"查询追踪"需要先产生查询记录。
+
+**Q: 如何切换到本地模型？**
+A: 修改 `config/settings.yaml`，设置 `llm.provider: ollama` 并指定 `base_url` (如 `http://localhost:11434`)。
 
 ---
 
