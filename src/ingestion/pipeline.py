@@ -244,6 +244,10 @@ class IngestionPipeline:
             metrics={"n_chunks": float(len(chunks))},
         )
 
+        # Ensure collection is in metadata for filtering
+        for chunk in chunks:
+            chunk.metadata["collection"] = collection
+
         encode_start = time.time() * 1000.0
         try:
             batch = self._encode(chunks, trace=effective_trace)

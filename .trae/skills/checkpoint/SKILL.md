@@ -83,9 +83,10 @@ Turn 3: Assistant EXECUTES COMMIT → Done
 **Goal**: Update `DEV_SPEC.md` and generate the git commit message.
 
 ### Actions
-1.  **Update DEV_SPEC.md**: Use `SearchReplace` to mark the task as completed (e.g., `[ ]` -> `[x]`).
-    -   *Rule*: Update the GLOBAL `DEV_SPEC.md` file.
-    -   *Rule*: Preserve the existing marker style (checkbox, emoji, etc.).
+1.  **Update DEV_SPEC.md**: Use `SearchReplace` to update **ALL THREE** progress indicators in the GLOBAL `DEV_SPEC.md` file. You may need multiple `SearchReplace` calls.
+    -   **Update 1: Phase Table** (e.g., `| I1 | ... | [ ] | ...`): Change `[ ]` to `[x]` (or `✅`) and fill in the "Complete Date" column with today's date.
+    -   **Update 2: Overall Progress** (e.g., "总体进度"): Increment the "Completed" count for the current Phase and the Total. Recalculate and update the "Progress" percentage.
+    -   **Update 3: Task Header** (e.g., `### I1：Task Name`): Append ` ✅` to the end of the task header line.
 2.  **Generate Commit Message**: Create a conventional commit message based on the work.
 3.  **Ask for Approval**: Present the message and ask if you should run `git commit`.
 4.  **STOP**: End your turn immediately.
