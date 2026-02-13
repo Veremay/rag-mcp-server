@@ -39,6 +39,9 @@ def _write_stdout_message(payload: Dict[str, Any]) -> None:
 
 def _ensure_project_root() -> None:
     """Ensure the current working directory is the project root."""
+    if os.environ.get("MODULAR_RAG_SKIP_ROOT_CHECK"):
+        return
+
     # src/mcp_server/server.py -> parents[2] is project root
     root = Path(__file__).resolve().parents[2]
     if os.getcwd() != str(root):
