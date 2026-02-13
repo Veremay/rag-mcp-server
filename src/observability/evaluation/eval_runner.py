@@ -75,7 +75,12 @@ class EvalRunner:
             retrieved_ids = [hit.chunk_id for hit in hits]
             retrieved_texts = [hit.record.content for hit in hits]
             retrieved_sources = [
-                str(hit.record.metadata.get("source", "")) for hit in hits
+                str(
+                    hit.record.metadata.get("source_path")
+                    or hit.record.metadata.get("source")
+                    or ""
+                )
+                for hit in hits
             ]
 
             # Run evaluation
