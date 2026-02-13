@@ -78,3 +78,37 @@ def test_factory_raises_error_on_unsupported():
 
     with pytest.raises(ValueError, match="No supported evaluator backend"):
         EvaluatorFactory.create(settings)
+
+
+def test_custom_evaluator_boundaries():
+    """Test CustomEvaluator boundary conditions."""
+    evaluator = CustomEvaluator()
+    query = "test"
+    
+    # 1. Empty retrieved list (should be 0.0)
+    metrics = evaluator.evaluate(query, [], ["A"])
+    assert metrics["hit_rate"] == 0.0
+    assert metrics["mrr"] == 0.0
+    
+    # 2. Retrieved list with duplicates (should count first occurrence for MRR)
+    # golden: A. retrieved: B, A, A. Rank = 2. MRR = 0.5
+    metrics = evaluator.evaluate(query, ["B", "A", "A"], ["A"])
+    assert metrics["hit_rate"] == 1.0
+    assert metrics["mrr"] == 0.5
+    
+    # 3. Case sensitivity (IDs are usually case-sensitive strings)
+    # golden: A. retrieved: a. Should be 0.0
+    metrics = evaluator.evaluate(query, ["a"], ["A"])
+    assert metrics["hit_rate"] == 0.0
+    
+    # 4. Golden list empty (should be 0.0, already covered in main test but good for regression)
+    metrics = evaluator.evaluate(query, ["A"], [])
+    assert metrics["hit_rate"] == 0.0
+    
+    # 5. Large lists
+    retrieved = [str(i) for i in range(100)]
+    golden = ["99"]
+    metrics = evaluator.evaluate(query, retrieved, golden)
+    assert metrics["hit_rate"] == 1.0
+    # MRR should be 1/100 = 0.01
+    assert abs(metrics["mrr"] - 0.01) < 1e-9
