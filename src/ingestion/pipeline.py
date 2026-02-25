@@ -166,8 +166,6 @@ class IngestionPipeline:
         try:
             loader = self._resolve_loader(path)
             document = loader.load(path)
-            if on_progress:
-                on_progress("loaded", {"document": document})
         except Exception as e:
             raise RuntimeError("IngestionPipeline loader step failed") from e
         load_end = time.time() * 1000.0
@@ -179,6 +177,23 @@ class IngestionPipeline:
                 "doc_id": getattr(document, "id", None),
                 "method": loader.__class__.__name__ if loader else "unknown",
             },
+        )
+
+        # Process images: move to storage and update references
+        image_store_start = time.time() * 1000.0
+        try:
+            self._process_images(document, collection)
+        except Exception as e:
+            # If image processing fails, log it but don't fail the whole ingestion?
+            # Or should we fail? Given images are critical for multimodal, failing is safer.
+            raise RuntimeError("IngestionPipeline image storage step failed") from e
+        image_store_end = time.time() * 1000.0
+        record_stage(
+            "image_store",
+            start_ms=image_store_start,
+            end_ms=image_store_end,
+            data={"count": len(document.metadata.get("images", []))},
+            metrics={"count": len(document.metadata.get("images", []))}
         )
 
         split_start = time.time() * 1000.0
@@ -318,18 +333,6 @@ class IngestionPipeline:
             metrics={"n_terms": float(len(getattr(bm25, "postings", []) or []))},
         )
 
-        image_start = time.time() * 1000.0
-        try:
-            self._store_images(collection=collection, document=document)
-        except Exception as e:
-            raise RuntimeError("IngestionPipeline image storage step failed") from e
-        image_end = time.time() * 1000.0
-        record_stage(
-            "image_store",
-            start_ms=image_start,
-            end_ms=image_end,
-        )
-
         finalize_start = time.time() * 1000.0
         try:
             self._integrity.mark_success(file_hash)
@@ -387,7 +390,7 @@ class IngestionPipeline:
 
         ext = path.suffix.lower()
         if ext == ".pdf":
-            return PdfLoader()
+            return PdfLoader(settings=self._settings.ingestion.loader)
 
         raise ValueError(f"Unsupported file extension: {ext}")
 
@@ -442,6 +445,79 @@ class IngestionPipeline:
         return indexer.upsert(
             collection=collection, chunk_ids=chunk_ids, sparse_vectors=sparse_vectors
         )
+
+    def _process_images(self, document: Document, collection: str) -> None:
+        """
+        Process images extracted from the document:
+        1. Move images to ImageStorage (organized by collection).
+        2. Update image references in document text and metadata.
+        3. Ensure metadata contains detailed image info for Dashboard.
+        """
+        image_refs = document.metadata.get("image_refs", [])
+        if not image_refs:
+            return
+
+        storage = self._image_storage or ImageStorage()
+        
+        # New list for updated references
+        new_image_refs = []
+        # Detailed image info for Dashboard (List[Dict])
+        detailed_images = []
+        
+        updated_text = document.text
+        
+        for ref_path in image_refs:
+            path_obj = Path(ref_path)
+            # Handle potential relative paths (e.g. data/images/...)
+            if not path_obj.is_absolute():
+                path_obj = path_obj.resolve()
+                
+            if not path_obj.exists():
+                # If absolute path doesn't exist, try relative to CWD
+                if not path_obj.is_absolute():
+                     path_obj = Path.cwd() / ref_path
+                
+                if not path_obj.exists():
+                    continue
+                
+            image_id = path_obj.stem
+            
+            try:
+                # Add to storage (move file to collection folder)
+                stored_path = storage.add_file(
+                    file_path=path_obj,
+                    collection=collection,
+                    image_id=image_id,
+                    move=True
+                )
+                
+                # Update reference in text
+                # PdfLoader uses str(path) which might differ in slashes on Windows
+                # We try to replace both original ref string and resolved path string
+                original_ref_str = str(ref_path)
+                stored_path_str = str(stored_path.resolve())
+                
+                if original_ref_str in updated_text:
+                    updated_text = updated_text.replace(original_ref_str, stored_path_str)
+                elif str(path_obj) in updated_text:
+                    updated_text = updated_text.replace(str(path_obj), stored_path_str)
+                
+                new_image_refs.append(stored_path_str)
+                detailed_images.append({
+                    "image_id": image_id,
+                    "path": stored_path_str,
+                    "collection": collection,
+                    "original_path": str(path_obj)
+                })
+            except Exception as e:
+                # Log error but continue processing other images
+                print(f"Error processing image {ref_path}: {e}")
+                continue
+            
+        document.text = updated_text
+        document.metadata["image_refs"] = new_image_refs
+        # Key fix for Dashboard: Set "images" metadata
+        document.metadata["images"] = detailed_images
 
     def _store_images(self, *, collection: str, document: Document) -> None:
         images = document.metadata.get("images")

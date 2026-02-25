@@ -143,6 +143,17 @@ def render_ingestion_traces_page() -> None:
                         c1, c2 = st.columns(2)
                         c1.write(f"**File:** {data.get('original_filename')}")
                         c2.write(f"**Hash:** `{data.get('hash')}`")
+
+                    elif name == "image_store":
+                        st.write(f"**Processed Images:** {data.get('count', 0)}")
+                        st.caption("Metadata & Metrics")
+                        c1, c2 = st.columns(2)
+                        with c1:
+                            st.write("Data:")
+                            st.json(data)
+                        with c2:
+                            st.write("Metrics:")
+                            st.json(metrics)
                         
                     elif name == "encode":
                         c1, c2 = st.columns(2)
