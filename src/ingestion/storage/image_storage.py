@@ -11,6 +11,82 @@ class ImageStorage:
     def __init__(self, base_dir: str | Path = "data/images") -> None:
         self._base_dir = Path(base_dir)
 
+    def add_file(
+        self,
+        *,
+        file_path: str | Path,
+        collection: str,
+        image_id: str,
+        move: bool = True,
+    ) -> Path:
+        """
+        Add an existing file to the storage.
+        
+        Args:
+            file_path: Path to the source file.
+            collection: Collection name.
+            image_id: Image ID.
+            move: If True, move the file; otherwise, copy it.
+            
+        Returns:
+            Path to the stored file.
+        """
+        src_path = Path(file_path).resolve()
+        if not src_path.exists():
+            raise FileNotFoundError(f"Source file not found: {src_path}")
+            
+        ext = src_path.suffix
+        collection = self._validate_name(collection, name="collection")
+        image_id = self._validate_name(image_id, name="image_id")
+        
+        target_dir = self._base_dir / collection
+        target_dir.mkdir(parents=True, exist_ok=True)
+        
+        target_path = target_dir / f"{image_id}{ext}"
+        
+        # Check if source and target are the same file
+        if src_path == target_path.resolve():
+             index = self._load_index(collection=collection)
+             index[image_id] = str(target_path.relative_to(self._base_dir))
+             self._save_index(collection=collection, index=index)
+             return target_path
+
+        # Atomic update not strictly possible with move/copy without temp file,
+        # but we can try to be safe.
+        import shutil
+        
+        if move:
+            shutil.move(str(src_path), str(target_path))
+        else:
+            shutil.copy2(str(src_path), str(target_path))
+            
+        index = self._load_index(collection=collection)
+        index[image_id] = str(target_path.relative_to(self._base_dir))
+        self._save_index(collection=collection, index=index)
+        
+        return target_path
+
+    def list_images(self, *, collection: str) -> Dict[str, Path]:
+        """
+        List all images in a collection.
+        
+        Args:
+            collection: Collection name.
+            
+        Returns:
+            Dictionary mapping image_id to absolute file path.
+        """
+        collection = self._validate_name(collection, name="collection")
+        index = self._load_index(collection=collection)
+        
+        results = {}
+        for image_id, rel_path in index.items():
+            full_path = (self._base_dir / rel_path).resolve()
+            if full_path.exists():
+                results[image_id] = full_path
+                
+        return results
+
     def save(
         self,
         *,

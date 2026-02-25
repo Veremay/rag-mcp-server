@@ -101,6 +101,13 @@ class SplitterSettings:
 
 
 @dataclass
+class LoaderSettings:
+    min_image_width: int = 100
+    min_image_height: int = 100
+    min_image_size_kb: int = 2
+
+
+@dataclass
 class ChunkRefinerSettings:
     enabled: bool = True
     enable_llm: bool = False
@@ -142,6 +149,7 @@ class TransformSettings:
 class IngestionSettings:
     splitter: SplitterSettings
     transform: TransformSettings
+    loader: LoaderSettings = field(default_factory=LoaderSettings)
 
 
 @dataclass
@@ -182,6 +190,7 @@ def load_settings(config_path: str = "config/settings.yaml") -> Settings:
     chunk_refiner_data = transform_data.get("chunk_refiner", {})
     metadata_enricher_data = transform_data.get("metadata_enricher", {})
     image_captioner_data = transform_data.get("image_captioner", {})
+    loader_data = ingestion_data.get("loader", {})
 
     return Settings(
         llm=LLMSettings(**config_data.get("llm", {})),
@@ -195,6 +204,7 @@ def load_settings(config_path: str = "config/settings.yaml") -> Settings:
                 metadata_enricher=MetadataEnricherSettings(**metadata_enricher_data),
                 image_captioner=ImageCaptionerSettings(**image_captioner_data),
             ),
+            loader=LoaderSettings(**loader_data),
         ),
         retrieval=RetrievalSettings(**config_data.get("retrieval", {})),
         rerank=RerankSettings(**config_data.get("rerank", {})),

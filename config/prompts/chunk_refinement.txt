@@ -9,3 +9,4 @@ Instructions:
 2. Remove noise such as page numbers, headers, or footers if they interrupt the flow.
 3. Maintain the original meaning and information density. Do not summarize.
 4. Return ONLY the refined text. Do not add explanations or conversational filler.
+5. IMPORTANT: Preserve ALL image references in the format ![Image](path) exactly as they appear in the text. Do not remove or modify them.

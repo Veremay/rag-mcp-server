@@ -1,4 +1,8 @@
+import base64
 import logging
+import mimetypes
+import re
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from src.core.settings import ImageCaptionerSettings, Settings
@@ -60,45 +64,103 @@ class ImageCaptioner(BaseTransform):
         self, chunks: List[Chunk], trace: Optional[TraceContext] = None
     ) -> List[Chunk]:
         """
-        Process chunks to add image captions.
+        Process chunks to add image captions and correct image metadata.
         """
         if not chunks:
             return []
 
-        # If disabled or LLM failed to init, return chunks as is
-        # (or maybe check per chunk if we want to log 'skipped')
-        if not self._cfg.enabled or not self._llm:
-            return chunks
-
+        # Check if caption generation is enabled
+        captions_enabled = self._cfg.enabled and self._llm is not None
+        
         for chunk in chunks:
-            self._process_chunk(chunk)
+
+            self._process_chunk(chunk, captions_enabled=captions_enabled)
+            
         return chunks
 
-    def _process_chunk(self, chunk: Chunk) -> None:
+    def _process_chunk(self, chunk: Chunk, captions_enabled: bool) -> None:
         """
-        Generate captions for images in a single chunk.
+        Generate captions for images in a single chunk and update metadata.
         """
-        image_refs = chunk.metadata.get("image_refs", [])
-        if not image_refs:
+        # Extract image paths from text using regex
+        # Matches ![Image](path)
+        image_refs = re.findall(r"!\[Image\]\((.*?)\)", chunk.text)
+        
+        # 1. Update metadata["images"] to only include images actually present in this chunk
+        # (Splitter copies document metadata to all chunks, so we need to filter)
+        all_images = chunk.metadata.get("images", [])
+        
+        if not isinstance(all_images, list):
+            all_images = []
+            
+        chunk_images = []
+        if image_refs:
+            # Normalize refs for comparison
+            refs_set = set()
+            refs_ids = set()
+            for r in image_refs:
+                try:
+                    p = Path(r).resolve()
+                    refs_set.add(str(p))
+                    refs_ids.add(p.stem) # Add image ID (filename without ext)
+                except Exception:
+                    refs_set.add(r)
+            
+            for img in all_images:
+                if not isinstance(img, dict):
+                    continue
+                img_path = img.get("path")
+                img_id = img.get("image_id") # Explicit ID from metadata
+                
+                match = False
+                if img_path:
+                    try:
+                        normalized_path = str(Path(img_path).resolve())
+                        if normalized_path in refs_set:
+                            match = True
+                        elif Path(img_path).stem in refs_ids:
+                             match = True
+                    except Exception:
+                        if img_path in refs_set:
+                             match = True
+                
+                # Also check explicit image_id if available
+                if not match and img_id and img_id in refs_ids:
+                    match = True
+                    
+                if match:
+                    chunk_images.append(img)
+        
+        chunk.metadata["images"] = chunk_images
+        
+        # 2. Generate captions if enabled and needed
+        if not captions_enabled or not image_refs:
             return
-
+    
         captions: Dict[str, str] = {}
         errors: List[str] = []
 
-        for img_id in image_refs:
+        for img_path in image_refs:
             try:
-                caption = self._generate_caption(img_id)
+                caption = self._generate_caption(img_path)
                 if caption:
-                    captions[img_id] = caption
+                    captions[img_path] = caption
+                    # Also update the image object in metadata with caption
+                    for img in chunk_images:
+                        if str(Path(img.get("path", "")).resolve()) == str(Path(img_path).resolve()):
+                            img["caption"] = caption
             except Exception as e:
-                logger.error(f"Failed to caption image {img_id}: {e}")
-                errors.append(f"{img_id}: {str(e)}")
+                logger.error(f"Failed to caption image {img_path}: {e}")
+                errors.append(f"{img_path}: {str(e)}")
                 # If fallback is NOT enabled, we should re-raise
                 if not self._cfg.fallback_on_error:
                     raise
 
         if captions:
             chunk.metadata["image_captions"] = captions
+            # Append captions to chunk text for retrieval context
+            caption_text = "\n\n".join([f"Image Caption ({Path(k).name}): {v}" for k, v in captions.items()])
+            chunk.text += f"\n\n[Image Captions]\n{caption_text}"
 
         if errors:
             chunk.metadata["has_unprocessed_images"] = True
@@ -109,31 +171,34 @@ class ImageCaptioner(BaseTransform):
             else:
                 chunk.metadata["processing_errors"] = errors
 
-    def _generate_caption(self, img_id: str) -> str:
+    def _generate_caption(self, img_path: str) -> str:
         """
         Call Vision LLM to generate caption.
         """
         if not self._llm:
             return ""
 
-        # Construct message for Vision LLM.
-        # We assume the LLM provider supports 'content' as list for vision tasks.
-        # Using a dummy URL for now since we don't have a real image store service yet.
-        # In a real implementation, we would read the file and encode base64
-        # or provide a valid accessible URL.
-
-        # NOTE: This relies on the specific LLM implementation (e.g. OpenAI)
-        # handling the list content correctly despite BaseLLM type hints.
-        messages = [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": self._prompt},
-                    # Placeholder image URL - likely won't work with real API
-                    # without valid URL/base64. But fine for mocking/testing.
-                    {"type": "image_url", "image_url": {"url": f"file://{img_id}"}},
-                ],
-            }
-        ]
-
-        return self._llm.chat(messages)  # type: ignore
+        try:
+            with open(img_path, "rb") as image_file:
+                encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
+            
+            mime_type, _ = mimetypes.guess_type(img_path)
+            if not mime_type:
+                mime_type = "image/jpeg"
+                
+            data_url = f"data:{mime_type};base64,{encoded_string}"
+            
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": self._prompt},
+                        {"type": "image_url", "image_url": {"url": data_url}},
+                    ],
+                }
+            ]
+            
+            return self._llm.chat(messages)  # type: ignore
+        except Exception as e:
+            logger.error(f"Error preparing image for captioning {img_path}: {e}")
+            raise

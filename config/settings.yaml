@@ -3,7 +3,7 @@ llm:
   # Options: azure | openai (supports compatible APIs) | ollama
   # Note: Use 'openai' provider with 'base_url' for compatible services (e.g., vLLM, Moonshot, etc.)
   provider: openai
-  model: deepseek-v3.2
+  model: qwen-turbo # deepseek-v3.2
   # azure_endpoint: "${AZURE_ENDPOINT}"
   api_key: "${ALIYUN_API_KEY}"
   base_url: "${ALIYUN_BASE_URL}"
@@ -20,7 +20,7 @@ embedding:
 vision_llm:
   # Options: azure | openai | ollama
   provider: openai
-  model: qwen3-vl-plus
+  model: qwen3-vl-flash
   base_url: "${ALIYUN_BASE_URL}"
   api_key: "${ALIYUN_API_KEY}"
 
@@ -33,6 +33,11 @@ vector_store:
 
 # Ingestion Configuration
 ingestion:
+  loader:
+    min_image_width: 200 # 最小图片宽度 (px)
+    min_image_height: 200 # 最小图片高度 (px)
+    min_image_size_kb: 5 # 最小图片文件大小 (KB)
+
   splitter:
     # Options: recursive | semantic | fixed
     provider: recursive
@@ -40,16 +45,16 @@ ingestion:
     chunk_overlap: 200
 
   transform:
-    chunk_refiner:
-      enabled: false
-      enable_llm: false
+    chunk_refiner: # 文本优化
+      enabled: true
+      enable_llm: true
       prompt_path: "config/prompts/chunk_refinement.txt"
-    metadata_enricher:
-      enabled: false
-      enable_llm: false
+    metadata_enricher: # 会对每个分片调用一次 LLM，数据量大时成本极高且速度慢，如果开启，建议修改代码使其支持使用轻量级模型
+      enabled: true
+      enable_llm: true
       max_tags: 5
-    image_captioner:
-      enabled: false
+    image_captioner: # 同样是高耗时操作
+      enabled: true
       prompt_path: "config/prompts/image_captioning.txt"
 
 # Retrieval Configuration

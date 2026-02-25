@@ -56,6 +56,20 @@ class ChunkRefiner(BaseTransform):
         if self.refiner_settings.enable_llm and self.llm:
             try:
                 refined_text = self._apply_llm(text)
+                
+                # Failsafe: Ensure image references are preserved
+                # LLM might strip them out as "formatting issues"
+                original_refs = re.findall(r"!\[Image\]\([^)]+\)", original_text)
+                if original_refs:
+                    refined_refs = set(re.findall(r"!\[Image\]\([^)]+\)", refined_text))
+                    missing_refs = [ref for ref in original_refs if ref not in refined_refs]
+                    
+                    if missing_refs:
+                        logger.warning(
+                            f"Restored {len(missing_refs)} missing image refs for chunk {chunk.id} after refinement"
+                        )
+                        refined_text += "\n\n" + "\n".join(missing_refs)
+
                 text = refined_text
                 chunk.metadata["refined_by_llm"] = True
             except Exception as e:
