@@ -63,3 +63,27 @@ Sparse Retrieval (BM25) 再次出现命中数为 0 的情况，导致 Trace 日�
 
 如果不开启 LLM， TRANSFORM 阶段本质上退化为一个**“极其轻量的去空格工具 + 简单的元数据提取器”**。如果您的源文档本身比较干净（没有页眉页脚噪音），那么 Split 输出 = Transform 输出 是完全符合预期
 ---
+
+## Problem 4
+**Time:** 2026-02-25
+
+### Description
+图片处理流程 (Image Processing Pipeline) 出现多处异常，导致 RAG 无法有效检索图片信息：
+1.  **噪音数据**：提取了大量无意义的背景图、图标等小尺寸图片。
+2.  **元数据丢失**：Dashboard 的 `image_store` 面板无数据，Chunk 的 `metadata["images"]` 字段为空。
+3.  **引用断裂**：Transform 阶段后，Chunk 文本中的 `![Image](...)` 引用标记消失，导致后续 Caption 无法关联。
+
+### Cause
+1.  **Loader 缺乏过滤**：`PdfLoader` 默认提取所有嵌入对象，未对尺寸进行阈值判断。
+2.  **ChunkRefiner 过度清洗**：LLM 在重写文本（Refinement）时，误将 Markdown 图片标签视为“格式噪音”并移除。
+3.  **路径匹配严格**：`ImageCaptioner` 依赖绝对路径匹配，导致 Splitter 生成的相对路径与 Metadata 中的绝对路径无法对应。
+
+### Solution
+1.  **增强过滤 (Loader)**：引入 `Pillow` 库，在 `pdf_loader.py` 中增加 `min_width`, `min_height`, `min_size_bytes` 配置，自动丢弃低质量图片。
+2.  **保护引用 (Transform)**：
+    *   **Prompt 优化**：在 `chunk_refinement.txt` 中明确要求保留 `![Image](path)` 标签。
+    *   **代码兜底**：在 `ChunkRefiner` 中增加 Failsafe 逻辑，若 LLM 移除了图片引用，强制从原始文本中恢复。
+3.  **模糊匹配 (Captioner)**：修改 `ImageCaptioner` 逻辑，支持基于文件名的模糊匹配 (Fuzzy Match)，确保图片元数据能正确回写到 Chunk 中。
+4.  **可视化修复**：更新 `ingestion_traces.py`，显式渲染 `image_store` 阶段的统计数据与图片预览。
+
+---
