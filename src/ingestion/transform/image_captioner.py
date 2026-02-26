@@ -176,19 +176,31 @@ class ImageCaptioner(BaseTransform):
 
     def _detect_language(self, text: str) -> str:
         """
-        Simple heuristic to detect if text is Chinese or English.
-        Returns 'zh' if Chinese characters are found, else 'en'.
+        Heuristic to detect if text is Chinese or English.
+        Defaults to 'zh' (Chinese) to bias towards Chinese output, unless strong English signal is found.
         """
         if not text:
-            return "en"
+            return "zh"
+        
+        # Remove image references to avoid biasing detection with file paths/extensions
+        # Matches ![Image](path)
+        clean_text = re.sub(r"!\[Image\]\(.*?\)", "", text)
+        
+        if not clean_text.strip():
+            return "zh"
         
         # Check for Chinese characters range \u4e00-\u9fff
-        # If we find any Chinese character, we assume it's a Chinese document context
-        # This is a simplified approach but effective for this use case
-        for char in text:
+        for char in clean_text:
             if '\u4e00' <= char <= '\u9fff':
                 return "zh"
-        return "en"
+        
+        # If no Chinese, check for significant English content
+        # Only return 'en' if there are enough English letters, otherwise default to 'zh'
+        english_chars = sum(1 for c in clean_text if 'a' <= c.lower() <= 'z')
+        if english_chars > 10:  # Threshold to avoid short codes/symbols triggering English
+            return "en"
+            
+        return "zh"
 
     def _generate_caption(self, img_path: str, language: str = "en") -> str:
         """
