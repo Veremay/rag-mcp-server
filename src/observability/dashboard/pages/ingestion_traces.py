@@ -126,17 +126,32 @@ def render_ingestion_traces_page() -> None:
                     
                 with st.expander(f"Stage: {name.upper()} ({stage.get('duration_ms', 0):.2f} ms)"):
                     if "chunks_preview" in data:
-                        st.caption(f"Generated {int(metrics.get('n_chunks', 0))} chunks. Previewing first 3:")
-                        tabs = st.tabs([f"Chunk {i+1}" for i in range(len(data["chunks_preview"]))])
-                        for i, chunk in enumerate(data["chunks_preview"]):
-                            with tabs[i]:
+                        chunks = data["chunks_preview"]
+                        total_chunks = int(metrics.get('n_chunks', len(chunks)))
+                        st.caption(f"Generated {total_chunks} chunks.")
+                        
+                        if not chunks:
+                            st.info("No chunks to preview.")
+                        else:
+                            # Use selectbox to choose chunk
+                            chunk_options = [f"Chunk {i+1} (ID: {c.get('id', 'N/A')})" for i, c in enumerate(chunks)]
+                            selected_option = st.selectbox(
+                                "Select Chunk to Preview", 
+                                options=chunk_options,
+                                key=f"select_{name}_{selected_trace['trace_id']}"
+                            )
+                            
+                            if selected_option:
+                                idx = chunk_options.index(selected_option)
+                                chunk = chunks[idx]
+                                
                                 st.text_area(
-                                    f"ID: {chunk.get('id')}", 
+                                    "Content", 
                                     chunk.get("text"), 
-                                    height=150,
-                                    key=f"preview_{name}_{i}_{chunk.get('id')}"
+                                    height=200,
+                                    key=f"preview_{name}_{idx}_{chunk.get('id')}"
                                 )
-                                with st.popover("Metadata"):
+                                with st.expander("Metadata", expanded=False):
                                     st.json(chunk.get("metadata"))
                     
                     elif name == "integrity":
@@ -165,7 +180,7 @@ def render_ingestion_traces_page() -> None:
                     elif name == "upsert":
                         st.write(f"**Backend:** {data.get('method')}")
                         if "upserted_ids" in data:
-                            st.write("**Upserted IDs (First 10):**")
+                            st.write("**Upserted IDs:**")
                             st.code(json.dumps(data["upserted_ids"]))
                         st.caption("Metrics")
                         st.json(metrics)
