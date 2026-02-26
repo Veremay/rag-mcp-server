@@ -214,7 +214,7 @@ class IngestionPipeline:
         split_data = {"method": self._settings.ingestion.splitter.provider}
         if chunks:
             preview = []
-            for c in chunks[:3]:
+            for c in chunks:
                 preview.append({
                     "id": c.id,
                     "text": c.text[:200] + "..." if len(c.text) > 200 else c.text,
@@ -243,7 +243,7 @@ class IngestionPipeline:
         transform_data = {"method": "chain", "transforms": [t.__class__.__name__ for t in (self._transforms or [])]}
         if chunks:
             preview = []
-            for c in chunks[:3]:
+            for c in chunks:
                 preview.append({
                     "id": c.id,
                     "text": c.text[:200] + "..." if len(c.text) > 200 else c.text,
@@ -303,7 +303,7 @@ class IngestionPipeline:
         # Capture upsert preview
         upsert_data = {"method": self._settings.vector_store.backend}
         if upsert and upsert.records:
-             upsert_data["upserted_ids"] = [r.id for r in upsert.records[:10]]
+             upsert_data["upserted_ids"] = [r.id for r in upsert.records]
 
         record_stage(
             "upsert",

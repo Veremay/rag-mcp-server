@@ -140,9 +140,12 @@ class ImageCaptioner(BaseTransform):
         captions: Dict[str, str] = {}
         errors: List[str] = []
 
+        # Detect language from chunk text
+        language = self._detect_language(chunk.text)
+
         for img_path in image_refs:
             try:
-                caption = self._generate_caption(img_path)
+                caption = self._generate_caption(img_path, language=language)
                 if caption:
                     captions[img_path] = caption
                     # Also update the image object in metadata with caption
@@ -171,7 +174,23 @@ class ImageCaptioner(BaseTransform):
             else:
                 chunk.metadata["processing_errors"] = errors
 
-    def _generate_caption(self, img_path: str) -> str:
+    def _detect_language(self, text: str) -> str:
+        """
+        Simple heuristic to detect if text is Chinese or English.
+        Returns 'zh' if Chinese characters are found, else 'en'.
+        """
+        if not text:
+            return "en"
+        
+        # Check for Chinese characters range \u4e00-\u9fff
+        # If we find any Chinese character, we assume it's a Chinese document context
+        # This is a simplified approach but effective for this use case
+        for char in text:
+            if '\u4e00' <= char <= '\u9fff':
+                return "zh"
+        return "en"
+
+    def _generate_caption(self, img_path: str, language: str = "en") -> str:
         """
         Call Vision LLM to generate caption.
         """
@@ -188,16 +207,22 @@ class ImageCaptioner(BaseTransform):
                 
             data_url = f"data:{mime_type};base64,{encoded_string}"
             
+            # Adjust prompt based on language
+            prompt = self._prompt
+            if language == "zh":
+                prompt += "\n请用中文简洁地概括这张图片的内容，不要冗长。"
+            else:
+                prompt += "\nPlease summarize the image content concisely in English."
+
             messages = [
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": self._prompt},
+                        {"type": "text", "text": prompt},
                         {"type": "image_url", "image_url": {"url": data_url}},
                     ],
                 }
             ]
-            
             return self._llm.chat(messages)  # type: ignore
         except Exception as e:
             logger.error(f"Error preparing image for captioning {img_path}: {e}")
