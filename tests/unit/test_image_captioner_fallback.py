@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch, mock_open
 
 import pytest
 
@@ -37,10 +37,11 @@ def mock_settings():
 def test_image_captioning_success(mock_settings):
     """Test successful caption generation when enabled."""
     mock_llm = MockLLM()
-    chunk = Chunk(text="Test chunk", metadata={"image_refs": ["img1"]})
+    chunk = Chunk(text="Test chunk ![Image](img1)", metadata={"image_refs": ["img1"]})
 
     captioner = ImageCaptioner(mock_settings, llm=mock_llm)
-    results = captioner.transform([chunk])
+    with patch("builtins.open", mock_open(read_data=b"fake_image_data")):
+        results = captioner.transform([chunk])
 
     assert len(results) == 1
     assert "image_captions" in results[0].metadata
@@ -54,10 +55,11 @@ def test_image_captioning_fallback(mock_settings):
     mock_llm = MagicMock(spec=BaseLLM)
     mock_llm.chat.side_effect = RuntimeError("API Error")
 
-    chunk = Chunk(text="Test chunk", metadata={"image_refs": ["img1"]})
+    chunk = Chunk(text="Test chunk ![Image](img1)", metadata={"image_refs": ["img1"]})
 
     captioner = ImageCaptioner(mock_settings, llm=mock_llm)
-    results = captioner.transform([chunk])
+    with patch("builtins.open", mock_open(read_data=b"fake_image_data")):
+        results = captioner.transform([chunk])
 
     assert len(results) == 1
     assert "image_captions" not in results[0].metadata
