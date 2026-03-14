@@ -185,6 +185,7 @@ uv pip install -e ".[dev]"
 | **Embedding** | `embedding.provider` | 向量模型提供商，支持 `openai`, `ollama`, `local`。 |
 | **Vector Store** | `vector_store.backend` | 向量库后端，目前支持 `chroma` (本地持久化)。 |
 | **Ingestion** | `ingestion.splitter` | 文档切分策略，推荐 `recursive`。 |
+| **Ingestion** | `ingestion.loader.pdf_parser` | PDF 解析方式：`original`（默认，pypdf+图片）或 `deepdoc`（本仓库内 DeepDoc 解析）。详见 `docs/deepdoc-migration-guide.md`。 |
 | **Retrieval** | `retrieval.fusion_algorithm` | 混合检索融合算法，默认 `rrf` (Reciprocal Rank Fusion)。 |
 | **Rerank** | `rerank.backend` | 精排模型，支持 `cross_encoder` (本地) 或 `llm` (云端)。 |
 

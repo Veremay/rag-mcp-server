@@ -102,9 +102,11 @@ class SplitterSettings:
 
 @dataclass
 class LoaderSettings:
+    """Loader 配置。pdf_parser 仅对 PDF 生效：original=原有 pypdf+图片，deepdoc=本仓库内实现的 DeepDoc（OCR+版面+表格）。"""
     min_image_width: int = 100
     min_image_height: int = 100
     min_image_size_kb: int = 2
+    pdf_parser: str = "original"  # original | deepdoc
 
 
 @dataclass

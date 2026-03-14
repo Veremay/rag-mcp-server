@@ -34,6 +34,8 @@ vector_store:
 # Ingestion Configuration
 ingestion:
   loader:
+    # PDF 解析方式：original=原有 pypdf+图片提取，deepdoc=本仓库内实现的 DeepDoc（OCR+版面+表格）
+    pdf_parser: deepdoc
     min_image_width: 200 # 最小图片宽度 (px)
     min_image_height: 200 # 最小图片高度 (px)
     min_image_size_kb: 5 # 最小图片文件大小 (KB)

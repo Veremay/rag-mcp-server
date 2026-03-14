@@ -4,6 +4,9 @@
 按顺序执行：完整性校验(去重) -> 加载 -> 图片入库 -> 切分 -> 变换(精炼/元数据/图注) ->
 编码(稠密+稀疏) -> 向量 upsert -> BM25 索引 -> 标记成功。每步带 trace 与 on_progress，
 便于观测与跳过未变更文件。
+
+设计上采用「单文件原子」：一次 ingest 只处理一个文件，失败时不会出现「部分写入」；
+去重依赖文件 SHA256，避免重复摄取相同内容，同时 force 可覆盖以支持重跑。
 """
 import time
 from dataclasses import dataclass
@@ -23,11 +26,17 @@ from src.ingestion.transform.chunk_refiner import ChunkRefiner
 from src.ingestion.transform.image_captioner import ImageCaptioner
 from src.ingestion.transform.metadata_enricher import MetadataEnricher
 from src.libs.loader.base_loader import BaseLoader
+from src.libs.loader.deepdoc_pdf_loader import DeepDocPdfLoader
 from src.libs.loader.file_integrity import FileIntegrityRegistry
 from src.libs.loader.pdf_loader import PdfLoader
 from src.libs.splitter.splitter_factory import SplitterFactory
 from src.libs.vector_store.base_vector_store import BaseVectorStore
 from src.observability.logger import write_trace as _write_trace
+
+
+# ---------------------------------------------------------------------------
+# 数据类：用于阶段结果与最终返回值，immutable 避免调用方误改导致与 trace 不一致
+# ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
@@ -39,6 +48,7 @@ class SplitResult:
 
 @dataclass(frozen=True)
 class IngestResult:
+    """单次摄取的完整结果；skipped=True 时 document/batch/upsert/bm25 为空，便于调用方区分「跳过」与「完成」。"""
     skipped: bool
     file_hash: str
     document: Optional[Document]
@@ -92,6 +102,8 @@ class IngestionPipeline:
         self._vector_store = vector_store
         self._bm25_indexer = bm25_indexer
         self._image_storage = image_storage
+        # 各组件为 None 时在对应步骤内按 settings 懒创建，这样构造 pipeline 时不必连所有后端，
+        # 同时测试可只 mock 需要的那几项（如 loader、vector_store）。
 
     def ingest(
         self,
@@ -112,6 +124,8 @@ class IngestionPipeline:
         # Ensure trace type is set to ingestion if passed in but empty type
         if isinstance(effective_trace, TraceContext) and effective_trace.trace_type == "query":
              effective_trace.trace_type = "ingestion"
+        # 使用局部 record_stage/flush_trace 而非 self 方法，避免把 trace 当实例状态传递，
+        # 这样单次 ingest 的 trace 生命周期清晰，且便于在测试里注入不实现 record_stage 的 mock。
 
         def record_stage(
             name: str,
@@ -121,6 +135,8 @@ class IngestionPipeline:
             data: Optional[Dict[str, Any]] = None,
             metrics: Optional[Dict[str, float]] = None,
         ) -> None:
+            # 用 getattr + callable 判断，这样传入的 trace 不必一定是 TraceContext，
+            # 只要实现 record_stage 即可，方便扩展或测试时用轻量对象。
             fn = getattr(effective_trace, "record_stage", None)
             if not callable(fn):
                 return
@@ -133,6 +149,7 @@ class IngestionPipeline:
             )
 
         def flush_trace() -> None:
+            # 只有 TraceContext 才做 finish + 写入；其他 trace 实现不强制要求 to_dict，避免耦合。
             if not isinstance(effective_trace, TraceContext):
                 return
             try:
@@ -147,6 +164,8 @@ class IngestionPipeline:
         if on_progress:
             on_progress("start", {"path": str(path)})
 
+        # --- 阶段 1：完整性校验 ---
+        # 先算 hash 再决定是否跳过，避免重复文件重复做 load/split/encode，节省资源且保持索引一致。
         integrity_start = time.time() * 1000.0
         try:
             file_hash = self._integrity.compute_sha256(path)
@@ -164,6 +183,7 @@ class IngestionPipeline:
             },
         )
 
+        # 未设置 force 且该 hash 已成功摄取过则直接返回，保证幂等且便于 UI 显示「已存在」。
         if not force and self._integrity.should_skip(file_hash):
             if on_progress:
                 on_progress("skipped", {"hash": file_hash})
@@ -181,6 +201,9 @@ class IngestionPipeline:
         if on_progress:
             on_progress("hash_calculated", {"hash": file_hash})
 
+        # --- 阶段 2：加载文档 ---
+        # 按扩展名选择 loader（如 PDF 用 PdfLoader 或 DeepDocPdfLoader），统一得到 Document，
+        # 后续阶段只依赖 Document 抽象，不关心具体格式。
         load_start = time.time() * 1000.0
         try:
             loader = self._resolve_loader(path)
@@ -198,7 +221,11 @@ class IngestionPipeline:
             },
         )
 
-        # Process images: move to storage and update references
+        # --- 阶段 3：图片入库 ---
+        # 在切分之前处理图片：把提取出的图片迁到按 collection 组织的存储，并更新 document 内引用，
+        # 这样后续 split/transform 里看到的已是稳定路径，且多模态检索能正确找到图片。
+        # 单张图片失败时 _process_images 内会 catch 并 continue，不抛异常，故不会整文档失败；
+        # 只有 _process_images 自身抛出（如 image_refs 异常、或存储不可用等）才会导致本阶段失败。
         image_store_start = time.time() * 1000.0
         try:
             self._process_images(document, collection)
@@ -215,10 +242,14 @@ class IngestionPipeline:
             metrics={"count": len(document.metadata.get("images", []))}
         )
 
+        # --- 阶段 4：切分 ---
+        # 用配置的 splitter 将 document.text 切成多段，每段带 doc 元数据 + chunk_index，
+        # 便于检索时按 collection 过滤以及按顺序还原上下文。
         split_start = time.time() * 1000.0
         try:
             split = self.split(document, trace=effective_trace)
             chunks = split.chunks
+            # 每个 chunk 的 metadata 里写入 collection，供向量库/Bm25 按 collection 隔离。
             for c in chunks:
                 meta = c.metadata
                 if isinstance(meta, dict):
@@ -249,6 +280,9 @@ class IngestionPipeline:
             metrics={"n_chunks": float(len(chunks))},
         )
 
+        # --- 阶段 5：变换 ---
+        # 精炼文本、补充元数据、图注等，在编码前完成，这样 embedding 看到的是「最终」文本，
+        # 检索质量更好；顺序固定为 Refiner -> Enricher -> Captioner，依赖前一步输出。
         transform_start = time.time() * 1000.0
         try:
             chunks = self._apply_transforms(chunks, trace=effective_trace)
@@ -278,10 +312,12 @@ class IngestionPipeline:
             metrics={"n_chunks": float(len(chunks))},
         )
 
-        # Ensure collection is in metadata for filtering
+        # 再次确保 collection 写入每个 chunk，防止 transform 里替换了 metadata 导致丢失。
         for chunk in chunks:
             chunk.metadata["collection"] = collection
 
+        # --- 阶段 6：编码 ---
+        # 稠密向量用于语义检索，稀疏向量用于 BM25 关键词检索；批量处理以控制 API 调用次数与限流。
         encode_start = time.time() * 1000.0
         try:
             batch = self._encode(chunks, trace=effective_trace)
@@ -310,6 +346,8 @@ class IngestionPipeline:
             },
         )
 
+        # --- 阶段 7：向量写入 ---
+        # 将 chunk 与稠密向量转为 VectorRecord 并写入配置的向量库，支持按 collection 过滤。
         upsert_start = time.time() * 1000.0
         try:
             upsert = self._upsert(chunks, batch.dense_vectors, trace=effective_trace)
@@ -332,6 +370,9 @@ class IngestionPipeline:
             metrics={"n_records": float(len(upsert.records))},
         )
 
+        # --- 阶段 8：BM25 索引 ---
+        # 用稀疏向量更新/创建 BM25 索引，与向量库并存，供混合检索时 SparseRetriever 使用；
+        # chunk_ids 与 upsert 结果一致，保证稠密与稀疏检索用的是同一批 chunk。
         bm25_start = time.time() * 1000.0
         try:
             chunk_ids = [r.id for r in upsert.records]
@@ -352,6 +393,8 @@ class IngestionPipeline:
             metrics={"n_terms": float(len(getattr(bm25, "postings", []) or []))},
         )
 
+        # --- 阶段 9：收尾 ---
+        # 标记该 file_hash 已成功摄取，下次同文件且未 force 时 will be skipped。
         finalize_start = time.time() * 1000.0
         try:
             self._integrity.mark_success(file_hash)
@@ -387,11 +430,15 @@ class IngestionPipeline:
 
         Returns:
             SplitResult containing the original document and generated chunks.
+
+        通过 SplitterFactory 按 settings 创建 splitter，保证与 ingest 内使用的切分逻辑一致；
+        返回 SplitResult 而非仅 chunks，方便测试或「只切分不落库」时仍能拿到原始 document。
         """
         splitter = SplitterFactory.create(self._settings)
         chunk_texts = splitter.split_text(document.text, trace=trace)
 
         chunks: List[Chunk] = []
+        # 继承 document 的 metadata 并加上 chunk_index，便于检索阶段按文档与顺序还原。
         for idx, text in enumerate(chunk_texts):
             chunks.append(
                 Chunk(
@@ -406,12 +453,21 @@ class IngestionPipeline:
     def _resolve_loader(self, path: Path) -> BaseLoader:
         """
         按扩展名选择 loader；注入的 _loader 优先，便于单测或支持更多格式。
+
+        为什么先看 _loader：构造时若注入了自定义 loader，则不再根据扩展名选择，方便测试或
+        接入新格式；PDF 再按 settings 的 pdf_parser 在「原始解析」与「DeepDoc」间切换，
+        以满足不同 PDF 质量与排版需求。
         """
         if self._loader is not None:
             return self._loader
 
         ext = path.suffix.lower()
         if ext == ".pdf":
+            pdf_parser = getattr(
+                self._settings.ingestion.loader, "pdf_parser", "original"
+            )
+            if pdf_parser == "deepdoc":
+                return DeepDocPdfLoader(settings=self._settings.ingestion.loader)
             return PdfLoader(settings=self._settings.ingestion.loader)
 
         raise ValueError(f"Unsupported file extension: {ext}")
@@ -422,6 +478,9 @@ class IngestionPipeline:
         """
         按顺序执行 ChunkRefiner -> MetadataEnricher -> ImageCaptioner。
         未注入时使用默认链，保证标题/摘要/图注等元数据在编码前就位。
+
+        顺序不可随意调换：Refiner 先做文本精炼，Enricher 依赖稳定文本补充元数据，
+        Captioner 依赖元数据中的图片信息生成图注；若注入自定义链，调用方需保证顺序合理。
         """
         transforms = list(self._transforms) if self._transforms is not None else None
         if transforms is None:
@@ -441,6 +500,9 @@ class IngestionPipeline:
     ) -> BatchProcessResult:
         """
         稠密+稀疏批量编码。batch_size 默认 10 以兼容部分 API 限制，避免单次请求过大。
+
+        稠密向量用于语义检索、稀疏用于 BM25，两者在同一批 chunk 上生成，保证后续 upsert 与
+        BM25 索引使用的 id 一致；未注入时懒创建 encoder/processor，避免 __init__ 依赖具体后端。
         """
         dense_encoder = self._dense_encoder or DenseEncoder(self._settings)
         sparse_encoder = self._sparse_encoder or SparseEncoder()
@@ -460,7 +522,12 @@ class IngestionPipeline:
         *,
         trace: Optional[Any],
     ) -> UpsertResult:
-        """将 chunks 与稠密向量转为 VectorRecord 并写入向量库，支持 trace。"""
+        """
+        将 chunks 与稠密向量转为 VectorRecord 并写入向量库，支持 trace。
+
+        不在此处写稀疏向量：稀疏向量交给 _build_bm25 写入 BM25 索引，向量库只存稠密向量，
+        职责分离；VectorUpserter 内部按 settings 选后端，注入 _vector_store 时则用注入实例。
+        """
         upserter = VectorUpserter(self._settings, vector_store=self._vector_store)
         return upserter.upsert(chunks, dense_vectors, trace=trace)
 
@@ -471,7 +538,12 @@ class IngestionPipeline:
         chunk_ids: Sequence[str],
         sparse_vectors: Sequence[dict[str, float]],
     ) -> BM25Index:
-        """用稀疏向量更新或创建 BM25 索引，供检索侧 SparseRetriever 使用。"""
+        """
+        用稀疏向量更新或创建 BM25 索引，供检索侧 SparseRetriever 使用。
+
+        chunk_ids 与 upsert 返回的 record id 一一对应，保证混合检索时稠密与稀疏结果来自同一批 chunk；
+        按 collection 隔离索引，便于多知识库场景。
+        """
         indexer = self._bm25_indexer or BM25Indexer()
         return indexer.upsert(
             collection=collection, chunk_ids=chunk_ids, sparse_vectors=sparse_vectors
@@ -483,6 +555,10 @@ class IngestionPipeline:
         1. Move images to ImageStorage (organized by collection).
         2. Update image references in document text and metadata.
         3. Ensure metadata contains detailed image info for Dashboard.
+
+        在 split 之前执行，这样切分后的 chunk 内引用已是稳定存储路径；同时更新 document.text
+        中的路径字符串，避免 loader 产生的临时路径在后续环节失效。单张失败仅跳过该张、继续其余，
+        若需「全部成功才成功」可在调用方根据 image_refs 长度再判断。
         """
         image_refs = document.metadata.get("image_refs", [])
         if not image_refs:
@@ -505,9 +581,10 @@ class IngestionPipeline:
                 
             if not path_obj.exists():
                 # If absolute path doesn't exist, try relative to CWD
+                # loader 可能写出相对路径，resolve 后仍可能不在当前 fs，用 CWD 再试一次以便本地调试。
                 if not path_obj.is_absolute():
                      path_obj = Path.cwd() / ref_path
-                
+
                 if not path_obj.exists():
                     continue
                 
@@ -522,9 +599,8 @@ class IngestionPipeline:
                     move=True
                 )
                 
-                # Update reference in text
-                # PdfLoader uses str(path) which might differ in slashes on Windows
-                # We try to replace both original ref string and resolved path string
+                # Update reference in text: 将正文里出现的旧路径替换为存储后的路径，便于检索与展示。
+                # PdfLoader 可能写出 str(path)，Windows 下与 resolve() 的斜杠形式不同，故同时尝试两种形式。
                 original_ref_str = str(ref_path)
                 stored_path_str = str(stored_path.resolve())
                 
@@ -541,16 +617,21 @@ class IngestionPipeline:
                     "original_path": str(path_obj)
                 })
             except Exception as e:
-                # Log error but continue processing other images
-                print(f"Error processing image {ref_path}: {e}")
+                # 单张失败不中断整次摄取，只跳过该图并继续，避免因一张坏图导致整文档失败。
+                print("Error processing image %s: %s" % (ref_path, e))
                 continue
             
         document.text = updated_text
         document.metadata["image_refs"] = new_image_refs
-        # Key fix for Dashboard: Set "images" metadata
+        # Key fix for Dashboard: Set "images" metadata（列表内为 path/collection 等，供前端展示与筛选）
         document.metadata["images"] = detailed_images
 
     def _store_images(self, *, collection: str, document: Document) -> None:
+        """
+        将 metadata["images"] 中带 data 字节流的项写入 ImageStorage。
+        用于 loader 直接产出 in-memory 图片（如 DeepDoc 解析出的图）而非文件路径的场景；
+        当前主流程使用 image_refs + _process_images，此方法保留以备其他入口或兼容。
+        """
         images = document.metadata.get("images")
         if not isinstance(images, list) or not images:
             return
@@ -585,6 +666,7 @@ def split_document(
     Returns:
         List of generated chunks.
 
-    仅做切分不落库，供脚本或测试中「只想要 chunks」的场景复用同一套 splitter 配置。
+    仅做切分不落库，供脚本或测试中「只想要 chunks」的场景复用同一套 splitter 配置；
+    这样与正式 ingest 的切分行为一致，避免「预览/导出」与「入库」结果不一致。
     """
     return IngestionPipeline(settings).split(document, trace=trace).chunks
