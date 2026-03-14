@@ -1,3 +1,9 @@
+"""
+BM25 稀疏索引：按 collection 持久化 doc_len、postings、idf，支持 upsert、search、remove_document。
+
+索引存为 meta.json + postings.json，upsert 时若已有索引则增量更新(不删旧 term)；
+search 用 BM25 公式算分并返回 top_k BM25Hit，供 SparseRetriever 使用。
+"""
 from __future__ import annotations
 
 import json
@@ -10,6 +16,7 @@ from typing import Dict, List, Mapping, Sequence, Tuple
 
 @dataclass(frozen=True)
 class BM25Hit:
+    """单条 BM25 命中：chunk_id 与分数，与 SparseHit 对应。"""
     chunk_id: str
     score: float
 
@@ -25,6 +32,7 @@ class BM25Index:
     idf: Dict[str, float]
 
     def search(self, query: str, top_k: int = 10) -> List[BM25Hit]:
+        """对 query 分词后按 BM25 公式累加各 term 得分，按分数降序取 top_k。"""
         token_re = re.compile(self.token_pattern, flags=re.UNICODE)
         terms = [t.lower() for t in token_re.findall(query or "")]
         if not terms or not self.doc_len:
@@ -61,6 +69,11 @@ class BM25Index:
 
 
 class BM25Indexer:
+    """
+    按 collection 管理 BM25 索引文件。upsert 支持增量(已有索引则合并)；
+    remove_document 按 chunk_ids 从 doc_len/postings 中移除并重算 avgdl/idf。
+    """
+
     def __init__(
         self,
         base_dir: str | Path = "data/db/bm25",
@@ -84,6 +97,9 @@ class BM25Indexer:
         """
         Update the index with new documents (incremental upsert).
         If the index does not exist, it will be created.
+
+        已有索引时在现有 doc_len/postings 上合并新 chunk，不删除旧 chunk 的 term，
+        适合追加式摄取；需完全重建时可先删 collection 目录再 upsert。
         """
         if len(chunk_ids) != len(sparse_vectors):
             raise ValueError(
@@ -147,6 +163,7 @@ class BM25Indexer:
         chunk_ids: Sequence[str],
         sparse_vectors: Sequence[Mapping[str, float]],
     ) -> BM25Index:
+        """从零构建索引并持久化，供新 collection 或全量重建使用。"""
         if len(chunk_ids) != len(sparse_vectors):
             raise ValueError(
                 f"chunk_ids and sparse_vectors length mismatch: {len(chunk_ids)} != {len(sparse_vectors)}"
@@ -188,6 +205,7 @@ class BM25Indexer:
         return index
 
     def persist(self, *, collection: str, index: BM25Index) -> None:
+        """将 meta 与 postings 分别写入 meta.json、postings.json。"""
         target_dir = self._base_dir / collection
         target_dir.mkdir(parents=True, exist_ok=True)
 
@@ -213,6 +231,7 @@ class BM25Indexer:
         )
 
     def load(self, *, collection: str) -> BM25Index:
+        """从 meta.json 与 postings.json 反序列化出 BM25Index。"""
         target_dir = self._base_dir / collection
         meta_path = target_dir / "meta.json"
         postings_path = target_dir / "postings.json"
@@ -237,15 +256,18 @@ class BM25Indexer:
         )
 
     def search(self, *, collection: str, query: str, top_k: int = 10) -> List[BM25Hit]:
+        """先 load 再调用 index.search，供 SparseRetriever 使用。"""
         return self.load(collection=collection).search(query=query, top_k=top_k)
 
     def remove_document(self, *, collection: str, chunk_ids: Sequence[str]) -> None:
         """
         Remove documents from the index.
-        
+
         Args:
             collection: The collection name.
             chunk_ids: List of chunk IDs to remove.
+
+        从 doc_len、postings 中剔除指定 chunk，重算 avgdl/idf 并 persist，保证删除文档后检索不再命中。
         """
         if not chunk_ids:
             return
@@ -309,6 +331,7 @@ def build_bm25_index(
     k1: float = 1.5,
     b: float = 0.75,
 ) -> BM25Index:
+    """便捷函数：用指定参数创建 Indexer 并执行一次 build，供无需复用实例的调用方使用。"""
     return BM25Indexer(base_dir, token_pattern=token_pattern, k1=k1, b=b).build(
         collection=collection, chunk_ids=chunk_ids, sparse_vectors=sparse_vectors
     )

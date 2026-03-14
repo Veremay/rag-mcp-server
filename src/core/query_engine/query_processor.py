@@ -1,3 +1,10 @@
+"""
+查询预处理：从原始 query 中抽取关键词与元数据过滤条件。
+
+先解析 filters（如 collection:xxx）可让检索只命中指定集合，避免全库扫；
+再对剩余文本做分词得到 keywords，供稀疏检索使用。中英文混合时对中文做
+按停用词切分并保留单字，是为了在 BM25 下兼顾召回与噪声控制。
+"""
 from __future__ import annotations
 
 import re
@@ -8,6 +15,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 @dataclass(frozen=True)
 class QueryProcessResult:
+    """预处理结果：keywords 供稀疏检索，filters 供向量库/过滤层，便于下游统一使用。"""
     keywords: List[str]
     filters: Dict[str, Any]
 
@@ -19,6 +27,11 @@ class QueryProcessor:
     This component extracts:
     - keywords: token list used by sparse retrieval
     - filters: normalized metadata constraints (may be empty)
+
+    查询预处理器：从自然语言 query 中抽取「关键词」和「过滤条件」。
+    抽取 filters 是为了让检索限定在指定 collection/doc_type 等，减少无关文档；
+    抽取 keywords 是为了稀疏检索能用更干净的词列表，减少停用词带来的噪声。
+    支持中英文停用词与可配置的 filter 键，便于按业务扩展。
     """
 
     def __init__(
@@ -105,6 +118,11 @@ class QueryProcessor:
 
         Returns:
             QueryProcessResult containing keywords and filters.
+
+        将原始 query 解析为 keywords 与 filters。先 _extract_filters 再对剩余文本
+        _extract_keywords，这样过滤条件不会进入分词，避免把「collection:docs」当成检索词。
+        若过滤后无关键词则退回整句分词，保证即使用户只写了过滤条件也有一定召回。
+        trace 用于记录阶段耗时与结果便于排查。
         """
         start_ms = time.time() * 1000.0
 
@@ -137,6 +155,10 @@ class QueryProcessor:
         return QueryProcessResult(keywords=keywords, filters=filters)
 
     def _extract_filters(self, query: str) -> Tuple[Dict[str, Any], str]:
+        """
+        从 query 中识别 key:=value 形式的过滤条件并移除，返回过滤字典与剩余文本。
+        只允许 _allowed_filter_keys 内的 key，避免任意键注入导致下游解析异常。
+        """
         filters: Dict[str, Any] = {}
 
         def replacer(match: re.Match[str]) -> str:
@@ -155,6 +177,10 @@ class QueryProcessor:
         return filters, residual
 
     def _extract_keywords(self, query: str) -> List[str]:
+        """
+        从剩余 query 中抽取检索用 token：英文词、数字、缩写、中文连续块及按停用词切分后的子串。
+        中文同时保留整块与单字是为了在 BM25 下既匹配长短语又不过度依赖完整词，提高召回。
+        """
         if not query:
             return []
 

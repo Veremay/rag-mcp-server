@@ -1,3 +1,9 @@
+"""
+文档管理：按集合/来源列举文档、查看详情、删除文档及统计。
+
+基于向量库 + BM25 + 图片存储 + 文件完整性注册表，保证删除时三处一致清理，
+列表与详情兼容 source_path / source、images 的 list 或 JSON 字符串等形态。
+"""
 from __future__ import annotations
 
 import json
@@ -12,6 +18,7 @@ from src.libs.vector_store.base_vector_store import BaseVectorStore, VectorRecor
 
 @dataclass
 class DocumentInfo:
+    """列表项：按 source_path 聚合的文档摘要，含块数与图片数便于 Dashboard 展示。"""
     source_path: str
     chunk_count: int
     image_count: int
@@ -20,6 +27,7 @@ class DocumentInfo:
 
 @dataclass
 class ChunkDetail:
+    """单块详情：id、正文、metadata、解析后的 images 列表，供详情页展示。"""
     id: str
     content: str
     metadata: Dict[str, Any]
@@ -28,12 +36,14 @@ class ChunkDetail:
 
 @dataclass
 class DocumentDetail:
+    """文档详情：来源路径与所属全部块，用于「查看文档」类接口。"""
     source_path: str
     chunks: List[ChunkDetail]
 
 
 @dataclass
 class DeleteResult:
+    """删除结果：是否成功、删除的块数/图片数及提示信息，便于前端或日志反馈。"""
     source_path: str
     success: bool
     deleted_chunks: int
@@ -43,6 +53,7 @@ class DeleteResult:
 
 @dataclass
 class CollectionStats:
+    """集合统计：文档数、块数、图片数及后端类型，供 Dashboard 或管理接口。"""
     collection_name: str
     total_documents: int
     total_chunks: int
@@ -51,6 +62,11 @@ class CollectionStats:
 
 
 class DocumentManager:
+    """
+    统一封装向量库、BM25、图片存储与完整性注册表，提供列举/详情/删除/统计。
+    删除时先查向量库再删图片、BM25、向量库、注册表，保证数据一致且可安全重跑摄取。
+    """
+
     def __init__(
         self,
         vector_store: BaseVectorStore,
@@ -74,6 +90,9 @@ class DocumentManager:
         
         Returns:
             List of DocumentInfo objects.
+
+        按 metadata 聚合 source_path，兼容 collection 过滤与 images 的 list/JSON 字符串，
+        便于 Dashboard 展示各文档块数与图片数。
         """
         # Get all records from vector store
         # Note: This loads all metadata into memory. Optimized for local usage.
@@ -128,6 +147,8 @@ class DocumentManager:
 
         Returns:
             DocumentDetail object or None if not found.
+
+        先按 source_path 查，无结果再按 source 查，兼容不同摄取阶段的 metadata 键名。
         """
         records = self.vector_store.get_records_by_metadata({"source_path": source_path})
         if not records:
@@ -170,6 +191,9 @@ class DocumentManager:
 
         Returns:
             DeleteResult object.
+
+        顺序：查向量库 -> 删图片(按 metadata.images) -> 删 BM25 -> 删向量 -> 删注册表，
+        避免残留引用或重复删除。
         """
         # 1. Find records in Vector Store
         records = self.vector_store.get_records_by_metadata({"source_path": source_path})
@@ -238,6 +262,8 @@ class DocumentManager:
     def get_collection_stats(self, collection: str = "") -> CollectionStats:
         """
         Get statistics for the collection.
+
+        通过 list_documents 聚合文档/块/图片数，backend 取自向量库实例以便展示当前后端。
         """
         # Rely on VectorStore stats + aggregation
         # Or simpler: list_documents and sum up

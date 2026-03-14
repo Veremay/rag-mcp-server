@@ -1,3 +1,9 @@
+"""
+元数据增强：为每个 chunk 补充 title、summary、tags。
+
+先规则抽取(标题/摘要/词频 tag)，再可选 LLM 生成更高质量元数据；LLM 失败时
+可根据 fallback_on_error 决定是否抛错。增强后的 metadata 供检索与展示使用。
+"""
 import json
 import logging
 import re
@@ -14,6 +20,11 @@ logger = logging.getLogger(__name__)
 
 
 class MetadataEnricher(BaseTransform):
+    """
+    规则 + 可选 LLM 的元数据增强。enabled 关闭时直接返回原 chunks；
+    _rule_enrich 保证至少 title/summary/tags 有默认值，_llm_enrich 再覆盖并做长度与条数限制。
+    """
+
     def __init__(
         self,
         settings: Settings,
@@ -50,6 +61,7 @@ class MetadataEnricher(BaseTransform):
     def transform(
         self, chunks: List[Chunk], trace: Optional[TraceContext] = None
     ) -> List[Chunk]:
+        """逐块 enrich，未开启或空列表时直接返回，避免多余开销。"""
         if not chunks:
             return []
 
@@ -81,6 +93,7 @@ class MetadataEnricher(BaseTransform):
         return chunk
 
     def _rule_enrich(self, text: str) -> Dict[str, Any]:
+        """规则抽取 title/summary/tags，无结果时给默认值保证下游不报错。"""
         cleaned = (text or "").strip()
         title = self._extract_title(cleaned)
         summary = self._extract_summary(cleaned)
@@ -96,6 +109,7 @@ class MetadataEnricher(BaseTransform):
         return {"title": title, "summary": summary, "tags": tags}
 
     def _llm_enrich(self, text: str) -> Dict[str, Any]:
+        """调用 LLM 生成 JSON 元数据，校验 schema 并做截断与条数限制。"""
         prompt = self._prompt_template.format(text=(text or "").strip())
         llm = self._llm
         if llm is None:
@@ -131,6 +145,7 @@ class MetadataEnricher(BaseTransform):
         return {"title": title, "summary": summary, "tags": tags}
 
     def _parse_llm_json(self, text: str) -> Dict[str, Any]:
+        """从 LLM 回复中提取第一个 JSON 对象，避免前后说明文字导致解析失败。"""
         raw = (text or "").strip()
 
         match = re.search(r"\{[\s\S]*\}", raw)
@@ -145,6 +160,7 @@ class MetadataEnricher(BaseTransform):
             raise ValueError(f"LLM metadata schema error: invalid JSON ({e})") from e
 
     def _extract_title(self, text: str) -> str:
+        """取首条非空行并去掉 Markdown 标题符与列表符，截断到配置长度。"""
         for line in text.splitlines():
             candidate = line.strip()
             if not candidate:
@@ -155,10 +171,12 @@ class MetadataEnricher(BaseTransform):
         return ""
 
     def _extract_summary(self, text: str) -> str:
+        """整段压成单行并截断，作为规则摘要。"""
         compact = re.sub(r"\s+", " ", text).strip()
         return self._truncate(compact, self._cfg.max_summary_chars)
 
     def _extract_tags(self, text: str) -> List[str]:
+        """对前 800 字做分词与词频排序，取 top max_tags 作为规则 tag。"""
         if not text:
             return []
 
@@ -172,6 +190,7 @@ class MetadataEnricher(BaseTransform):
         return tags
 
     def _tokenize(self, text: str) -> List[str]:
+        """英文 3+ 字母与中文 2+ 字，过滤停用词，供 _extract_tags 词频统计。"""
         stopwords = {
             "the",
             "and",
@@ -204,6 +223,7 @@ class MetadataEnricher(BaseTransform):
         return filtered
 
     def _truncate(self, text: str, max_chars: int) -> str:
+        """按字符数截断并 rstrip，避免超长 title/summary/tag 撑破存储或展示。"""
         if max_chars <= 0:
             return ""
         if len(text) <= max_chars:

@@ -1,3 +1,10 @@
+"""
+混合检索：串联查询预处理、稠密检索、稀疏检索与 RRF 融合，返回带完整 record 的命中列表。
+
+先通过 QueryProcessor 解析 filters 与 keywords，稠密用原 query、稀疏用 keywords，
+再对两路结果做 RRF 融合并用水合后的 VectorRecord 填满 HybridSearchHit，
+便于下游直接拿 content/metadata 做展示或重排，无需再查向量库。
+"""
 from __future__ import annotations
 
 import time
@@ -14,6 +21,10 @@ from src.libs.vector_store.base_vector_store import VectorRecord
 
 @dataclass(frozen=True)
 class HybridSearchHit:
+    """
+    混合检索单条命中：chunk_id、融合分数、完整 record（用于展示/重排）、
+    dense_rank/sparse_rank 便于分析双路贡献。
+    """
     chunk_id: str
     score: float
     record: VectorRecord
@@ -22,6 +33,14 @@ class HybridSearchHit:
 
 
 class HybridSearch:
+    """
+    混合检索入口：协调预处理、稠密、稀疏、融合与命中水合。
+
+    各子组件可注入以便测试或替换实现；search 内对 dense/sparse/fusion 分阶段
+    record_stage，便于观测每段耗时与命中数。稀疏侧用 keywords 检索是为了更好利用
+    预处理抽取的词，稠密侧用原 query 保留语义。
+    """
+
     def __init__(
         self,
         settings: Settings,
@@ -46,6 +65,13 @@ class HybridSearch:
         top_k_final: Optional[int] = None,
         trace: Optional[Any] = None,
     ) -> List[HybridSearchHit]:
+        """
+        执行混合检索：预处理 -> 稠密/稀疏并行语义 -> 融合 -> 水合 record。
+
+        稠密用完整 query 与 filters，稀疏用预处理得到的 keywords，这样语义与关键词
+        都能被利用。水合阶段用稠密侧已有 record 或从向量库按 chunk_id 补全，保证
+        每条 HybridSearchHit 都有 record 供下游使用。
+        """
         def record_stage(
             name: str,
             *,
@@ -144,6 +170,11 @@ def _hydrate_fusion_hits(
     dense_hits: Sequence[DenseHit],
     dense: DenseRetriever,
 ) -> List[HybridSearchHit]:
+    """
+    将 FusionHit 列表转为 HybridSearchHit：为每条补全 VectorRecord。
+    优先用 dense_hits 中已有的 record，缺失时再通过 _resolve_record_from_dense_vector_store
+    从向量库按 chunk_id 拉取，这样稀疏独有命中也能拿到 content/metadata。
+    """
     dense_records: Dict[str, VectorRecord] = {
         str(h.record.id): h.record for h in dense_hits
     }
@@ -171,6 +202,7 @@ TRACE_HITS_LIMIT = 20
 
 
 def _serialize_dense_hits(hits: Sequence[DenseHit]) -> List[Dict[str, Any]]:
+    """将 DenseHit 序列化为 trace 用的 dict 列表，限制条数避免 payload 过大。"""
     return [
         {
             "id": str(h.record.id),
@@ -185,6 +217,10 @@ def _serialize_dense_hits(hits: Sequence[DenseHit]) -> List[Dict[str, Any]]:
 def _serialize_sparse_hits(
     hits: Sequence[SparseHit], dense: Optional[DenseRetriever] = None
 ) -> List[Dict[str, Any]]:
+    """
+    将 SparseHit 序列化为 trace 用 dict；若提供 dense 则按 chunk_id 解析 record
+    补全 content/metadata，便于在 trace 中看到稀疏命中的正文。
+    """
     out = []
     for h in hits[:TRACE_HITS_LIMIT]:
         item = {
@@ -202,6 +238,7 @@ def _serialize_sparse_hits(
 
 
 def _serialize_hybrid_hits(hits: Sequence[HybridSearchHit]) -> List[Dict[str, Any]]:
+    """将 HybridSearchHit 序列化为 trace 用 dict，含 rank 信息便于分析。"""
     return [
         {
             "id": str(h.chunk_id),
@@ -219,6 +256,11 @@ def _serialize_hybrid_hits(hits: Sequence[HybridSearchHit]) -> List[Dict[str, An
 def _resolve_record_from_dense_vector_store(
     dense: DenseRetriever, chunk_id: str
 ) -> Optional[VectorRecord]:
+    """
+    根据 chunk_id 从稠密检索器背后的向量库解析出 VectorRecord。
+    兼容多种存储形态（内存 dict、_load_all、Chromadb 等），用于融合后为仅出现在
+    稀疏侧的命中补全 record，避免下游拿不到 content。
+    """
     vector_store = getattr(dense, "_vector_store", None)
     if vector_store is None:
         return None

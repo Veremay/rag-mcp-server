@@ -1,3 +1,9 @@
+"""
+分块精炼：规则清理 + 可选 LLM 润色，并保证图片引用不被 LLM 删掉。
+
+先去掉「Page N」、页码行等噪声，再可选调用 LLM 做格式与清晰度优化；
+LLM 若抹掉 ![Image](path) 则从原文补回，避免多模态检索丢失图片引用。
+"""
 import logging
 import re
 from pathlib import Path
@@ -13,6 +19,11 @@ logger = logging.getLogger(__name__)
 
 
 class ChunkRefiner(BaseTransform):
+    """
+    规则清理 + 可选 LLM 精炼。prompt 从配置路径加载，失败则用默认提示；
+    LLM 失败时根据 fallback_on_error 决定是否抛错，并记录 refinement_error。
+    """
+
     def __init__(self, settings: Settings):
         self.settings = settings
         self.refiner_settings = settings.ingestion.transform.chunk_refiner
@@ -30,6 +41,7 @@ class ChunkRefiner(BaseTransform):
         self.prompt_template = self._load_prompt()
 
     def _load_prompt(self) -> str:
+        """从配置路径读取提示词，失败时退回默认文案保证流水线可运行。"""
         path = self.refiner_settings.prompt_path
         try:
             return Path(path).read_text(encoding="utf-8")
@@ -42,6 +54,7 @@ class ChunkRefiner(BaseTransform):
     def transform(
         self, chunks: List[Chunk], trace: Optional[TraceContext] = None
     ) -> List[Chunk]:
+        """逐块精炼：先规则再可选 LLM，并补回被 LLM 删掉的图片引用。"""
         refined_chunks = []
         for chunk in chunks:
             self.refine_chunk(chunk)
@@ -49,8 +62,23 @@ class ChunkRefiner(BaseTransform):
 
         return refined_chunks
 
+    def _sanitize_utf8(self, text: str) -> str:
+        """
+        移除或替换无法用 UTF-8 编码的字符（如 surrogate 码位），避免送入 LLM 或落库时报错。
+        PDF 等来源可能产生 U+D800..U+DFFF 的代理字符，encode('utf-8') 会抛出 surrogates not allowed。
+        """
+        if not text:
+            return text
+        sanitized = text.encode("utf-8", errors="replace").decode("utf-8")
+        if sanitized != text:
+            logger.warning(
+                "UTF-8 sanitized invalid characters (e.g. surrogates), content was modified (replacement chars in result: %s)",
+                sanitized.count("\ufffd"),
+            )
+        return sanitized
+
     def refine_chunk(self, chunk: Chunk) -> Chunk:
-        original_text = chunk.text
+        original_text = self._sanitize_utf8(chunk.text)
         text = self._apply_rules(original_text)
 
         if self.refiner_settings.enable_llm and self.llm:
@@ -79,10 +107,11 @@ class ChunkRefiner(BaseTransform):
                 chunk.metadata["refinement_error"] = str(e)
                 chunk.metadata["refined_by_llm"] = False
 
-        chunk.text = text
+        chunk.text = self._sanitize_utf8(text)
         return chunk
 
     def _apply_rules(self, text: str) -> str:
+        """去掉「Page N」、页码行等常见噪声，减少检索与展示干扰。"""
         if not text:
             return ""
 
@@ -96,6 +125,7 @@ class ChunkRefiner(BaseTransform):
         return text.strip()
 
     def _apply_llm(self, text: str) -> str:
+        """用配置的 prompt 调用 LLM 润色，返回去首尾空白后的文本。"""
         prompt = self.prompt_template.format(text=text)
         messages = [{"role": "user", "content": prompt}]
         llm = self.llm

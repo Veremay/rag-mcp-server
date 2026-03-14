@@ -1,3 +1,9 @@
+"""
+图注生成：对 chunk 内引用的图片用 Vision LLM 生成 caption 并写回 metadata 与正文。
+
+先按 ![Image](path) 过滤出本块实际出现的图片，再按语言(中/英)调整 prompt 生成描述，
+并追加到 chunk.text 供检索匹配；失败时可根据 fallback_on_error 决定是否抛错。
+"""
 import base64
 import logging
 import mimetypes
@@ -18,6 +24,9 @@ class ImageCaptioner(BaseTransform):
     """
     Transform component that generates captions for images referenced in chunks
     using a Vision LLM.
+
+    支持从 prompt_path 加载提示词；未启用或 Vision LLM 初始化失败时仅做 metadata.images
+    过滤与校正，不生成 caption，保证流水线仍可继续。
     """
 
     def __init__(
@@ -65,6 +74,9 @@ class ImageCaptioner(BaseTransform):
     ) -> List[Chunk]:
         """
         Process chunks to add image captions and correct image metadata.
+
+        先按正文中的 ![Image](path) 过滤出本块真实出现的图片并更新 metadata.images，
+        再在启用且 LLM 可用时为每张图生成 caption 并写入 metadata 与 chunk.text。
         """
         if not chunks:
             return []
@@ -81,6 +93,9 @@ class ImageCaptioner(BaseTransform):
     def _process_chunk(self, chunk: Chunk, captions_enabled: bool) -> None:
         """
         Generate captions for images in a single chunk and update metadata.
+
+        用 path/stem 匹配 metadata.images 与正文引用，只保留本块出现的图片；再按语言检测
+        生成 caption 并回写到 image 对象与 chunk.text，便于检索时匹配图注语义。
         """
         # Extract image paths from text using regex
         # Matches ![Image](path)
@@ -144,6 +159,13 @@ class ImageCaptioner(BaseTransform):
         language = self._detect_language(chunk.text)
 
         for img_path in image_refs:
+            if not Path(img_path).exists():
+                logger.warning(
+                    "Image ref in chunk is not an existing file, skip captioning: %s",
+                    img_path,
+                )
+                errors.append("%s: file not found" % (img_path,))
+                continue
             try:
                 caption = self._generate_caption(img_path, language=language)
                 if caption:
@@ -178,6 +200,8 @@ class ImageCaptioner(BaseTransform):
         """
         Heuristic to detect if text is Chinese or English.
         Defaults to 'zh' (Chinese) to bias towards Chinese output, unless strong English signal is found.
+
+        先去掉图片引用再检测，避免路径/扩展名干扰；无中文且英文字母数超过阈值才判为 en。
         """
         if not text:
             return "zh"
@@ -205,6 +229,7 @@ class ImageCaptioner(BaseTransform):
     def _generate_caption(self, img_path: str, language: str = "en") -> str:
         """
         Call Vision LLM to generate caption.
+        读入图片并 base64 为 data URL，按 language 追加中/英提示后发送给 Vision LLM。
         """
         if not self._llm:
             return ""

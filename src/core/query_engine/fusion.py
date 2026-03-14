@@ -1,3 +1,9 @@
+"""
+融合模块：将稠密检索与稀疏检索的命中列表用 RRF 合并为单一排序列表。
+
+RRF（Reciprocal Rank Fusion）不依赖原始分数尺度，只根据排名加权求和，
+避免稠密/稀疏分数不可比的问题；k 为平滑常数，常用 60 以平衡高低排名差异。
+"""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -11,6 +17,10 @@ from src.libs.vector_store.base_vector_store import VectorRecord
 
 @dataclass(frozen=True)
 class FusionHit:
+    """
+    融合后的一条命中：chunk_id、RRF 分数、可选的 record（来自稠密侧）、
+    dense_rank/sparse_rank 便于调试或展示双路排名。
+    """
     chunk_id: str
     score: float
     record: Optional[VectorRecord]
@@ -19,6 +29,13 @@ class FusionHit:
 
 
 class RRFFusion:
+    """
+    RRF 融合器：按 1/(k+rank) 对稠密与稀疏的排名加权求和，再按分数降序、排名、chunk_id 排序。
+
+    k 越大高低排名差异越小，默认 60 与常见文献一致；只出现在一侧的 chunk 也会得到
+    对应侧的贡献，保证稠密/稀疏互补时不会漏掉单路高分项。
+    """
+
     def __init__(self, *, k: int = 60) -> None:
         self._k = int(k)
         if self._k < 0:
@@ -31,6 +48,12 @@ class RRFFusion:
         *,
         top_k: Optional[int] = None,
     ) -> List[FusionHit]:
+        """
+        对稠密与稀疏命中做 RRF 融合，返回按融合分数排序的 FusionHit 列表。
+
+        先按 chunk_id 收集两边的排名与稠密侧 record，再按 RRF 公式累加分数；
+        排序时用 (-score, best_rank, chunk_id) 保证分数优先、同分时排名靠前优先、再按 id 稳定序。
+        """
         effective_top_k = None if top_k is None else int(top_k)
         if effective_top_k is not None and effective_top_k <= 0:
             return []
@@ -91,4 +114,5 @@ def rrf_fuse(
     k: int = 60,
     top_k: Optional[int] = None,
 ) -> List[FusionHit]:
+    """便捷函数：用默认 k 创建 RRFFusion 并执行一次融合，供无需复用实例的调用方使用。"""
     return RRFFusion(k=k).fuse(dense_hits, sparse_hits, top_k=top_k)

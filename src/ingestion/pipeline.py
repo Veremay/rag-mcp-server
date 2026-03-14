@@ -1,3 +1,10 @@
+"""
+摄取流水线：从文件到向量库/BM25/图片存储的完整流程编排。
+
+按顺序执行：完整性校验(去重) -> 加载 -> 图片入库 -> 切分 -> 变换(精炼/元数据/图注) ->
+编码(稠密+稀疏) -> 向量 upsert -> BM25 索引 -> 标记成功。每步带 trace 与 on_progress，
+便于观测与跳过未变更文件。
+"""
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -25,6 +32,7 @@ from src.observability.logger import write_trace as _write_trace
 
 @dataclass(frozen=True)
 class SplitResult:
+    """切分结果：保留原 document 与生成的 chunks，便于单测或只做切分不落库。"""
     document: Document
     chunks: List[Chunk]
 
@@ -46,6 +54,9 @@ class IngestionPipeline:
 
     This pipeline currently integrates the configured splitter and produces Chunk objects
     from a Document.
+
+    各阶段组件可注入(integrity/loader/transforms/encoder/vector_store/bm25/image_storage)，
+    便于测试或替换实现；未注入时在对应步骤内按 settings 或默认链创建，保证开箱即用。
     """
 
     def __init__(
@@ -67,6 +78,9 @@ class IngestionPipeline:
 
         Args:
             settings: Global application settings.
+
+        未传入的组件在运行时按需解析(如 _resolve_loader、_encode 内创建 encoder)，
+        避免构造时强依赖所有后端，同时支持部分替换。
         """
         self._settings = settings
         self._integrity = integrity or FileIntegrityRegistry()
@@ -89,6 +103,11 @@ class IngestionPipeline:
         trace: Optional[Any] = None,
         on_progress: Optional[Callable[[str, Dict[str, Any]], None]] = None,
     ) -> IngestResult:
+        """
+        对单文件执行完整摄取。先算 hash 并判断是否跳过(未 force 且已成功摄取过)，
+        再依次执行 load -> 图片处理 -> split -> transform -> encode -> upsert -> bm25 -> finalize。
+        trace 用于记录各阶段耗时与数据快照；on_progress 供 UI 展示进度。
+        """
         effective_trace: Any = trace if trace is not None else TraceContext(trace_type="ingestion")
         # Ensure trace type is set to ingestion if passed in but empty type
         if isinstance(effective_trace, TraceContext) and effective_trace.trace_type == "query":
@@ -385,6 +404,9 @@ class IngestionPipeline:
         return SplitResult(document=document, chunks=chunks)
 
     def _resolve_loader(self, path: Path) -> BaseLoader:
+        """
+        按扩展名选择 loader；注入的 _loader 优先，便于单测或支持更多格式。
+        """
         if self._loader is not None:
             return self._loader
 
@@ -397,6 +419,10 @@ class IngestionPipeline:
     def _apply_transforms(
         self, chunks: List[Chunk], *, trace: Optional[Any]
     ) -> List[Chunk]:
+        """
+        按顺序执行 ChunkRefiner -> MetadataEnricher -> ImageCaptioner。
+        未注入时使用默认链，保证标题/摘要/图注等元数据在编码前就位。
+        """
         transforms = list(self._transforms) if self._transforms is not None else None
         if transforms is None:
             transforms = [
@@ -413,6 +439,9 @@ class IngestionPipeline:
     def _encode(
         self, chunks: List[Chunk], *, trace: Optional[Any]
     ) -> BatchProcessResult:
+        """
+        稠密+稀疏批量编码。batch_size 默认 10 以兼容部分 API 限制，避免单次请求过大。
+        """
         dense_encoder = self._dense_encoder or DenseEncoder(self._settings)
         sparse_encoder = self._sparse_encoder or SparseEncoder()
         # Default batch size reduced to 10 to comply with strict API limits (e.g. SiliconFlow/OpenAI)
@@ -431,6 +460,7 @@ class IngestionPipeline:
         *,
         trace: Optional[Any],
     ) -> UpsertResult:
+        """将 chunks 与稠密向量转为 VectorRecord 并写入向量库，支持 trace。"""
         upserter = VectorUpserter(self._settings, vector_store=self._vector_store)
         return upserter.upsert(chunks, dense_vectors, trace=trace)
 
@@ -441,6 +471,7 @@ class IngestionPipeline:
         chunk_ids: Sequence[str],
         sparse_vectors: Sequence[dict[str, float]],
     ) -> BM25Index:
+        """用稀疏向量更新或创建 BM25 索引，供检索侧 SparseRetriever 使用。"""
         indexer = self._bm25_indexer or BM25Indexer()
         return indexer.upsert(
             collection=collection, chunk_ids=chunk_ids, sparse_vectors=sparse_vectors
@@ -553,5 +584,7 @@ def split_document(
 
     Returns:
         List of generated chunks.
+
+    仅做切分不落库，供脚本或测试中「只想要 chunks」的场景复用同一套 splitter 配置。
     """
     return IngestionPipeline(settings).split(document, trace=trace).chunks

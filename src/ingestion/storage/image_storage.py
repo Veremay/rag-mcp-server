@@ -1,3 +1,9 @@
+"""
+图片存储：按 collection 组织目录，维护 image_id -> 相对路径的 index.json。
+
+支持 add_file(移动/复制)、save(字节写入)、get_path、delete、list_images；
+写入用原子写(tmp+replace)避免并发或中断导致索引与文件不一致。
+"""
 from __future__ import annotations
 
 import json
@@ -8,6 +14,11 @@ from typing import Dict, Optional
 
 
 class ImageStorage:
+    """
+    本地文件系统图片存储，每 collection 一个目录 + index.json。
+    _validate_name / _normalize_ext 防止路径注入与异常扩展名。
+    """
+
     def __init__(self, base_dir: str | Path = "data/images") -> None:
         self._base_dir = Path(base_dir)
 
@@ -30,6 +41,9 @@ class ImageStorage:
             
         Returns:
             Path to the stored file.
+
+        若源与目标为同一文件则只更新索引不移动；否则 move/copy 后更新 index，
+        保证 get_path 能根据 collection+image_id 解析到正确路径。
         """
         src_path = Path(file_path).resolve()
         if not src_path.exists():
@@ -95,6 +109,7 @@ class ImageStorage:
         data: bytes,
         ext: str = ".png",
     ) -> Path:
+        """将内存中的图片字节写入 collection 目录并更新索引，使用原子写避免半写。"""
         if not isinstance(data, (bytes, bytearray)):
             raise TypeError("data must be bytes")
         if not data:
@@ -173,6 +188,7 @@ class ImageStorage:
         return self._base_dir / collection / "index.json"
 
     def _load_index(self, *, collection: str) -> Dict[str, str]:
+        """读取 index.json 并过滤为非空 str->str，损坏或不存在时返回空 dict。"""
         index_path = self._index_path(collection=collection)
         if not index_path.exists():
             return {}
@@ -193,6 +209,7 @@ class ImageStorage:
         return index
 
     def _save_index(self, *, collection: str, index: Dict[str, str]) -> None:
+        """原子写 index.json，避免写入中断导致索引损坏。"""
         index_path = self._index_path(collection=collection)
         index_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -201,6 +218,7 @@ class ImageStorage:
 
     @staticmethod
     def _atomic_write_text(path: Path, content: str) -> None:
+        """先写临时文件再 replace，保证读者要么看到旧版要么看到完整新版。"""
         path.parent.mkdir(parents=True, exist_ok=True)
         fd = None
         tmp_path: Optional[str] = None
@@ -223,6 +241,7 @@ class ImageStorage:
 
     @staticmethod
     def _atomic_write_bytes(path: Path, content: bytes) -> None:
+        """与 _atomic_write_text 同理，用于 save() 写入图片文件。"""
         path.parent.mkdir(parents=True, exist_ok=True)
         fd = None
         tmp_path: Optional[str] = None
@@ -244,6 +263,7 @@ class ImageStorage:
 
     @staticmethod
     def _normalize_ext(ext: str) -> str:
+        """统一为 .xxx 且禁止路径/空字符，防止扩展名注入。"""
         ext = (ext or "").strip()
         if not ext:
             return ".png"
@@ -257,6 +277,7 @@ class ImageStorage:
 
     @staticmethod
     def _validate_name(value: str, *, name: str) -> str:
+        """禁止空、路径符、. / ..，防止目录穿越。"""
         value = (value or "").strip()
         if not value:
             raise ValueError(f"{name} is empty")

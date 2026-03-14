@@ -1,3 +1,12 @@
+import sys
+from pathlib import Path
+
+# Streamlit 在子进程运行本文件时，项目根通常不在 PYTHONPATH，导致 No module named 'src'
+# 在首次 import src 前把项目根加入 path，保证无论用 streamlit run 还是 python scripts/start_dashboard.py 都能正常导入
+_project_root = Path(__file__).resolve().parents[3]
+if _project_root.exists() and str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
+
 import streamlit as st
 
 from src.observability.dashboard.pages.overview import render_overview

@@ -35,6 +35,30 @@ def _format_snippet(text: str, max_len: int = 60) -> str:
     return compact[: max(0, max_len - 1)] + "…"
 
 
+# 与 pipeline._resolve_loader 支持的扩展保持一致，避免把目录当文件打开导致 Permission denied
+_SUPPORTED_EXTENSIONS = (".pdf",)
+
+
+def _collect_file_paths(path: Path) -> list[Path]:
+    """
+    若 path 为文件且扩展名支持则返回 [path]；
+    若为目录则递归收集支持扩展名的文件列表。
+    这样传入目录时不会把目录路径交给 pipeline（否则 compute_sha256 会 Permission denied）。
+    """
+    path = path.resolve()
+    if path.is_file():
+        if path.suffix.lower() in _SUPPORTED_EXTENSIONS:
+            return [path]
+        return []
+    if path.is_dir():
+        return [
+            p
+            for p in path.rglob("*")
+            if p.is_file() and p.suffix.lower() in _SUPPORTED_EXTENSIONS
+        ]
+    return []
+
+
 def main(argv: list[str] | None = None) -> int:
     _ensure_project_on_sys_path()
 
@@ -91,6 +115,23 @@ def main(argv: list[str] | None = None) -> int:
         elif stage == "complete":
             print(f"✅  COMPLETE")
 
+    path_arg = Path(args.path).resolve()
+    files = _collect_file_paths(path_arg)
+    if not files:
+        if path_arg.is_dir():
+            print(
+                "ERROR: 目录下未找到支持的文件（当前支持: %s）"
+                % ", ".join(_SUPPORTED_EXTENSIONS),
+                file=sys.stderr,
+            )
+        else:
+            print(
+                "ERROR: 路径不是文件或扩展名不支持（支持: %s）"
+                % ", ".join(_SUPPORTED_EXTENSIONS),
+                file=sys.stderr,
+            )
+        return 1
+
     try:
         settings = load_settings(str(config_path))
         if hasattr(settings, "vector_store") and hasattr(
@@ -98,38 +139,45 @@ def main(argv: list[str] | None = None) -> int:
         ):
             settings.vector_store.collection_name = str(args.collection)
         pipeline = IngestionPipeline(settings)
-        result = pipeline.ingest(
-            collection=str(args.collection),
-            file_path=Path(args.path),
-            force=bool(args.force),
-            on_progress=print_progress,
-        )
     except Exception as e:
         _print_exception_chain(e)
         return 1
 
-    if not args.verbose:
-        # Standard silent/minimal output
-        if result.skipped:
-            print(f"SKIPPED\t{args.path}")
-            return 0
-        print(f"INGESTED\t{args.path}\tchunks={len(result.chunks)}")
+    exit_code = 0
+    for one_path in files:
+        try:
+            result = pipeline.ingest(
+                collection=str(args.collection),
+                file_path=one_path,
+                force=bool(args.force),
+                on_progress=print_progress,
+            )
+        except Exception as e:
+            _print_exception_chain(e)
+            exit_code = 1
+            continue
 
-    if len(result.chunks) == 0 and not result.skipped:
-        print(
-            "WARN: 文档未抽取到可切分的文本，因此 chunks=0。",
-            file=sys.stderr,
-        )
-        print(
-            "      常见原因：PDF 为扫描件/图片型；或 PDF 加密/字体编码导致 pypdf 抽取失败。",
-            file=sys.stderr,
-        )
-        print(
-            "      建议：先对 PDF 做 OCR（生成文本层）后再运行 ingest.py；或更换为可搜索 PDF。",
-            file=sys.stderr,
-        )
+        if not args.verbose:
+            if result.skipped:
+                print("SKIPPED\t%s" % one_path)
+            else:
+                print("INGESTED\t%s\tchunks=%s" % (one_path, len(result.chunks)))
 
-    return 0
+        if len(result.chunks) == 0 and not result.skipped:
+            print(
+                "WARN: 文档未抽取到可切分的文本，因此 chunks=0。",
+                file=sys.stderr,
+            )
+            print(
+                "      常见原因：PDF 为扫描件/图片型；或 PDF 加密/字体编码导致 pypdf 抽取失败。",
+                file=sys.stderr,
+            )
+            print(
+                "      建议：先对 PDF 做 OCR（生成文本层）后再运行 ingest.py；或更换为可搜索 PDF。",
+                file=sys.stderr,
+            )
+
+    return exit_code
 
 
 def _print_exception_chain(err: BaseException) -> None:

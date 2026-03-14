@@ -29,7 +29,7 @@ vector_store:
   # Options: chroma | qdrant | pinecone
   backend: chroma
   persist_path: ./data/db/chroma
-  collection_name: knowledge_hub
+  collection_name: academic_papers_knowledge_hub
 
 # Ingestion Configuration
 ingestion:
