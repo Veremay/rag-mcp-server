@@ -433,20 +433,49 @@ class IngestionPipeline:
 
         通过 SplitterFactory 按 settings 创建 splitter，保证与 ingest 内使用的切分逻辑一致；
         返回 SplitResult 而非仅 chunks，方便测试或「只切分不落库」时仍能拿到原始 document。
+        若 document.metadata 含 "tables"（DeepDoc PDF 表格），先为每个表格生成独立 chunk（chunk_type=table），
+        再对正文做切分，与 RAGFlow 的表格使用流程一致：表格单独成 chunk、统一参与 embedding 与检索。
         """
+        chunks: List[Chunk] = []
+        chunk_index = 0
+        tables = document.metadata.get("tables") if isinstance(document.metadata, dict) else None
+
+        def _chunk_meta(extra: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+            # 继承 document 元数据但去掉 tables，避免在每个 chunk 里重复存整张表
+            base = {k: v for k, v in (document.metadata or {}).items() if k != "tables"}
+            if extra:
+                base.update(extra)
+            return base
+
+        if tables and isinstance(tables, list):
+            for i, tbl in enumerate(tables):
+                if not isinstance(tbl, dict) or not tbl.get("text"):
+                    continue
+                meta = _chunk_meta({"chunk_index": chunk_index, "chunk_type": "table"})
+                if tbl.get("image_ref"):
+                    meta["image_ref"] = tbl["image_ref"]
+                chunks.append(
+                    Chunk(
+                        text=tbl["text"],
+                        metadata=meta,
+                        doc_id=document.id,
+                    )
+                )
+                chunk_index += 1
+
         splitter = SplitterFactory.create(self._settings)
         chunk_texts = splitter.split_text(document.text, trace=trace)
-
-        chunks: List[Chunk] = []
-        # 继承 document 的 metadata 并加上 chunk_index，便于检索阶段按文档与顺序还原。
-        for idx, text in enumerate(chunk_texts):
+        for text in chunk_texts:
+            if not text or not text.strip():
+                continue
             chunks.append(
                 Chunk(
                     text=text,
-                    metadata={**document.metadata, "chunk_index": idx},
+                    metadata=_chunk_meta({"chunk_index": chunk_index}),
                     doc_id=document.id,
                 )
             )
+            chunk_index += 1
 
         return SplitResult(document=document, chunks=chunks)
 
@@ -570,6 +599,8 @@ class IngestionPipeline:
         new_image_refs = []
         # Detailed image info for Dashboard (List[Dict])
         detailed_images = []
+        # 旧路径 -> 新路径，用于同步更新 metadata["tables"][i]["image_ref"]（DeepDoc 表格独立 chunk 用）
+        ref_mapping: Dict[str, str] = {}
         
         updated_text = document.text
         
@@ -610,6 +641,9 @@ class IngestionPipeline:
                     updated_text = updated_text.replace(str(path_obj), stored_path_str)
                 
                 new_image_refs.append(stored_path_str)
+                ref_mapping[original_ref_str] = stored_path_str
+                if str(path_obj) != original_ref_str:
+                    ref_mapping[str(path_obj)] = stored_path_str
                 detailed_images.append({
                     "image_id": image_id,
                     "path": stored_path_str,
@@ -625,6 +659,10 @@ class IngestionPipeline:
         document.metadata["image_refs"] = new_image_refs
         # Key fix for Dashboard: Set "images" metadata（列表内为 path/collection 等，供前端展示与筛选）
         document.metadata["images"] = detailed_images
+        # DeepDoc 表格在 metadata["tables"] 中带 image_ref；图片迁库后需更新为最终路径，供 split 产出的 table chunk 使用
+        for tbl in document.metadata.get("tables") or []:
+            if isinstance(tbl, dict) and tbl.get("image_ref") and ref_mapping.get(tbl["image_ref"]):
+                tbl["image_ref"] = ref_mapping[tbl["image_ref"]]
 
     def _store_images(self, *, collection: str, document: Document) -> None:
         """

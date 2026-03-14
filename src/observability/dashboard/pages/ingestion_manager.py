@@ -13,7 +13,7 @@ def render_ingestion_manager_page() -> None:
     
     # --- Sidebar Configuration ---
     st.sidebar.header("Ingestion Settings")
-    collection_name = st.sidebar.text_input("Target Collection", value="knowledge_hub")
+    collection_name = st.sidebar.text_input("Target Collection", value="academic_papers_knowledge_hub")
     force_ingest = st.sidebar.checkbox("Force Ingest (Ignore Hash)", value=False)
 
     # --- Main Area: File Upload ---
