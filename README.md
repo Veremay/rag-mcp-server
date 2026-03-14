@@ -137,6 +137,7 @@ source .venv/bin/activate  # macOS/Linux
 # 3. 安装依赖
 python -m pip install -U pip
 python -m pip install -e ".[dev]"
+# 若需 DeepDoc PDF 解析（pdfplumber + OCR + 版面 + 表格），请加装：pip install -e ".[deepdoc]"
 
 # 4. 配置环境变量
 cp .env.example .env
@@ -167,6 +168,7 @@ uv venv --python 3.11
 
 # 4. 按 pyproject.toml 安装依赖（含 dev）
 uv pip install -e ".[dev]"
+# 若需 DeepDoc PDF 解析，请加装：uv pip install -e ".[deepdoc]"
 
 # 5. 后续步骤同上：配置 .env、摄取数据、运行 python src/main.py
 ```
@@ -452,9 +454,9 @@ A: 修改 `config/settings.yaml`，设置 `llm.provider: ollama` 并指定 `base
 
 | 文件 | 作用 |
 |------|------|
-| `ingest.py` | 文档摄取入口：`--path` 可为**单个 PDF** 或**包含多个 PDF 的目录**（递归处理），配合 `--collection` 一键 ingest。 |
+| `ingest.py` | 文档摄取入口：指定 `--path` 与 `--collection`，将本地文件解析、切块、向量化并写入向量库与 BM25。 |
 | `query.py` | 命令行查询：对指定 collection 做检索与问答，用于快速验证。 |
-| `evaluate.py` | 使用 Golden Test Set 跑 RAG 评测；支持 **ragas+custom**（在 `config/settings.yaml` 中设 `evaluation.backends: [ragas, custom]`，或命令行 `--backends ragas,custom`）。 |
+| `evaluate.py` | 使用 Golden Test Set 跑 RAG 评测（Hit Rate、MRR 等）。 |
 | `rebuild_bm25.py` | 按现有向量库/JSONL 数据重建 BM25 索引，用于索引损坏或策略变更后。 |
 | `start_dashboard.py` | 启动 Streamlit Dashboard 的封装脚本（可确保项目根在 `sys.path`）。 |
 | `verify_connectivity.py` | 校验与外部服务（如 LLM/Embedding API）的连通性。 |

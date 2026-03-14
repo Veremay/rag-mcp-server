@@ -91,6 +91,8 @@ class ObservabilitySettings:
     enabled: bool
     log_file: str
     dashboard_port: int
+    # 上传后用于 ingest 的临时文件目录；为空则用系统 temp。设为项目内路径（如 ./data/tmp）便于排查与权限控制
+    ingestion_tmp_dir: Optional[str] = None
 
 
 @dataclass

@@ -163,6 +163,7 @@ cython_debug/
 /data/cache/
 /data/db/
 /data/images/
+/data/tmp/
 /logs/
 
 # deepdoc 模型与资源：体积大且 fork 上 LFS 受限，不纳入仓库

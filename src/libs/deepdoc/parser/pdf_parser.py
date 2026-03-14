@@ -101,16 +101,36 @@ class RAGFlowPdfParser:
                 self.updown_cnt_mdl.set_param({"device": "cuda"})
         except Exception:
             logging.info("No torch found.")
+        # XGBoost 3.1+ 已移除旧二进制格式加载，优先尝试 UBJ/JSON（若后续提供转换后模型可无缝支持）
+        _xgb_basename = "updown_concat_xgb"
+        _extensions = (".ubj", ".json", ".model")
+
+        def _try_load_from_dir(directory):
+            for ext in _extensions:
+                path = os.path.join(directory, _xgb_basename + ext)
+                if os.path.isfile(path):
+                    try:
+                        self.updown_cnt_mdl.load_model(path)
+                        return True
+                    except Exception as e:
+                        logging.debug("Failed to load %s: %s", path, e)
+            return False
+
         try:
             model_dir = get_project_base_directory()
-            self.updown_cnt_mdl.load_model(os.path.join(model_dir, "updown_concat_xgb.model"))
-        except Exception:
-            model_dir = snapshot_download(
-                repo_id="InfiniFlow/text_concat_xgb_v1.0",
-                local_dir=get_project_base_directory(),
-                local_dir_use_symlinks=False,
-            )
-            self.updown_cnt_mdl.load_model(os.path.join(model_dir, "updown_concat_xgb.model"))
+            if not _try_load_from_dir(model_dir):
+                model_dir = snapshot_download(
+                    repo_id="InfiniFlow/text_concat_xgb_v1.0",
+                    local_dir=get_project_base_directory(),
+                    local_dir_use_symlinks=False,
+                )
+                if not _try_load_from_dir(model_dir):
+                    raise RuntimeError(
+                        "updown_concat_xgb 模型未找到或格式不可用（XGBoost 3.1+ 需 .ubj/.json）。"
+                        "请将 xgboost 限制为 <3.1 或提供 UBJ/JSON 格式模型。"
+                    )
+        except Exception as e:
+            raise RuntimeError("DeepDoc 无法加载 updown_concat_xgb 模型: %s" % (e,)) from e
 
         self.page_from = 0
         self.column_num = 1

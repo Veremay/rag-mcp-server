@@ -89,3 +89,5 @@ observability:
   enabled: true
   log_file: ./logs/traces.jsonl
   dashboard_port: 8501
+  # 上传文件在 ingest 前落盘目录；留空则用系统临时目录。设为项目内路径便于排查与避免权限问题
+  ingestion_tmp_dir: ./data/tmp

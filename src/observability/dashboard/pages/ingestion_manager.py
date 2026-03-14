@@ -7,6 +7,7 @@ import streamlit as st
 import pandas as pd
 
 from src.observability.dashboard.services.app_context import get_ingestion_pipeline, get_document_manager
+from src.observability.dashboard.services.config_service import ConfigService
 
 def render_ingestion_manager_page() -> None:
     st.title("Ingestion Manager 📥")
@@ -99,11 +100,17 @@ def _handle_ingestion(uploaded_file: Any, collection_name: str, force: bool) -> 
         st.error(f"Failed to initialize pipeline: {e}")
         return
 
-    # 2. Save uploaded file to temp
-    # We use a suffix to help loader identify file type
+    # 2. Save uploaded file to temp（优先使用配置的 ingestion_tmp_dir，使临时文件落在项目目录下便于排查与避免系统 temp 权限问题）
     suffix = os.path.splitext(uploaded_file.name)[1]
-    
-    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp_file:
+    tmp_dir = None
+    try:
+        settings = ConfigService().get_settings()
+        if getattr(settings.observability, "ingestion_tmp_dir", None):
+            tmp_dir = os.path.abspath(settings.observability.ingestion_tmp_dir)
+            os.makedirs(tmp_dir, exist_ok=True)
+    except Exception:
+        pass
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix, dir=tmp_dir) as tmp_file:
         tmp_file.write(uploaded_file.getvalue())
         tmp_path = tmp_file.name
     
