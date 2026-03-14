@@ -17,9 +17,16 @@ def _ensure_project_on_sys_path() -> None:
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(prog="ingest")
-    parser.add_argument("--collection", required=True)
-    parser.add_argument("--path", required=True)
+    parser = argparse.ArgumentParser(
+        prog="ingest",
+        description="一键 ingest：可指定单个 PDF 或包含多个 PDF 的目录（递归处理）。",
+    )
+    parser.add_argument("--collection", required=True, help="向量集合名称")
+    parser.add_argument(
+        "--path",
+        required=True,
+        help="单个 PDF 文件路径，或包含多个 PDF 的目录路径（会递归收集该目录下所有 .pdf 并依次 ingest）",
+    )
     parser.add_argument("--force", action="store_true")
     parser.add_argument(
         "--verbose", action="store_true", help="Print detailed progress"

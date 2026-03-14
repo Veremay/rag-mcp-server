@@ -16,12 +16,20 @@ from src.observability.evaluation.eval_runner import EvalRunner
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Run evaluation on golden test set.")
+    parser = argparse.ArgumentParser(
+        description="Run evaluation on golden test set. Evaluator backends 由 config 的 evaluation.backends 决定，可用 --backends 覆盖为 ragas+custom 等。"
+    )
     parser.add_argument(
         "--test-set",
         type=str,
         default="tests/fixtures/golden_test_set.json",
         help="Path to the golden test set JSON file.",
+    )
+    parser.add_argument(
+        "--backends",
+        type=str,
+        default=None,
+        help="覆盖配置中的 evaluation.backends，逗号分隔，例如: ragas,custom。不传则使用 config/settings.yaml 中的 backends。",
     )
     args = parser.parse_args()
 
@@ -35,11 +43,16 @@ def main():
         console.print(f"[bold red]Failed to load settings:[/bold red] {e}")
         return
 
+    # 允许命令行覆盖 backends，便于临时使用 ragas+custom 而不改配置文件
+    if args.backends is not None:
+        settings.evaluation.backends = [b.strip() for b in args.backends.split(",") if b.strip()]
+        console.print("Using backends from CLI: [cyan]%s[/cyan]" % ",".join(settings.evaluation.backends))
+
     # 2. Initialize Components
     try:
         console.print("Initializing HybridSearch...")
         hybrid_search = HybridSearch(settings)
-        
+
         console.print("Initializing Evaluator...")
         evaluator = EvaluatorFactory.create(settings)
     except Exception as e:

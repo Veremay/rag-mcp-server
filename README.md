@@ -299,7 +299,8 @@ python scripts/ingest.py --path /path/to/your/docs/ --collection my_production
 ### 6. 可选：正式环境下的评估
 
 - 默认 `evaluation.golden_test_set` 指向 `./tests/fixtures/golden_test_set.json`。
-- 正式使用时可在 `config/settings.yaml` 中改为自己的 Golden Test Set 路径，并在 **Dashboard → Evaluation** 中运行，用于监控检索与回答质量。
+- 支持 **ragas + custom** 组合：在 `config/settings.yaml` 中设置 `evaluation.backends: [ragas, custom]`，即可同时得到 Ragas 指标（如 faithfulness、answer_relevancy）与自定义指标（Hit Rate、MRR 等）；命令行临时指定可运行：`python scripts/evaluate.py --backends ragas,custom`。
+- 正式使用时可在配置中改为自己的 Golden Test Set 路径，并在 **Dashboard → Evaluation** 中运行，用于监控检索与回答质量。
 
 ---
 
@@ -451,9 +452,9 @@ A: 修改 `config/settings.yaml`，设置 `llm.provider: ollama` 并指定 `base
 
 | 文件 | 作用 |
 |------|------|
-| `ingest.py` | 文档摄取入口：指定 `--path` 与 `--collection`，将本地文件解析、切块、向量化并写入向量库与 BM25。 |
+| `ingest.py` | 文档摄取入口：`--path` 可为**单个 PDF** 或**包含多个 PDF 的目录**（递归处理），配合 `--collection` 一键 ingest。 |
 | `query.py` | 命令行查询：对指定 collection 做检索与问答，用于快速验证。 |
-| `evaluate.py` | 使用 Golden Test Set 跑 RAG 评测（Hit Rate、MRR 等）。 |
+| `evaluate.py` | 使用 Golden Test Set 跑 RAG 评测；支持 **ragas+custom**（在 `config/settings.yaml` 中设 `evaluation.backends: [ragas, custom]`，或命令行 `--backends ragas,custom`）。 |
 | `rebuild_bm25.py` | 按现有向量库/JSONL 数据重建 BM25 索引，用于索引损坏或策略变更后。 |
 | `start_dashboard.py` | 启动 Streamlit Dashboard 的封装脚本（可确保项目根在 `sys.path`）。 |
 | `verify_connectivity.py` | 校验与外部服务（如 LLM/Embedding API）的连通性。 |

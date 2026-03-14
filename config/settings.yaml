@@ -77,9 +77,12 @@ rerank:
   top_m: 30
 
 # Evaluation Configuration
+# backends: 支持 custom（Hit Rate/MRR 等）、ragas（faithfulness/answer_relevancy 等），可同时启用
 evaluation:
-  backends: [custom]
+  backends: [ragas]
   golden_test_set: ./tests/fixtures/golden_test_set.json
+  # ragas 指标（留空则使用 ragas 默认全部）；可选: context_precision, context_recall, faithfulness, answer_relevancy
+  metrics: []
 
 # Observability Configuration
 observability:
