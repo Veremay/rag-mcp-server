@@ -165,10 +165,8 @@ cython_debug/
 /data/images/
 /logs/
 
-# deepdoc 模型与资源：体积大且 fork 上 LFS 受限，不纳入仓库；保留 README 说明获取方式
+# deepdoc 模型与资源：体积大且 fork 上 LFS 受限，不纳入仓库
 src/libs/deepdoc/res/*
-!src/libs/deepdoc/res/README.md
-!src/libs/deepdoc/res/.gitattributes
 
 # Local env files
 .envrc
