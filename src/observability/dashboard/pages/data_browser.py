@@ -76,10 +76,10 @@ def render_data_browser_page() -> None:
     m3.metric("Total Images", total_images)
     
     st.divider()
-    
+
     # Document Table
     st.subheader("Document List")
-    
+    st.caption("👉 点击表格中的一行，下方会显示该文档的 Chunk 内容与 Chunk ID（用于构造 ground truth）。")
     df_data = [
         {
             "Source Path": d.source_path,
@@ -132,12 +132,28 @@ def render_data_browser_page() -> None:
             tab1, tab2 = st.tabs(["Chunks Content", "Images Gallery"])
             
             with tab1:
+                st.caption(
+                    "构造 ground truth 步骤：① 先看下方每个块的「Chunk 内容」，判断哪些块应该被某 query 命中；"
+                    "② 复制对应块的「Chunk ID」到 golden test set 的 expected_chunk_ids；"
+                    "source 在 metadata 中可作 expected_sources。"
+                )
                 for i, chunk in enumerate(detail.chunks):
-                    with st.expander(f"Chunk {i+1} (ID: {chunk.id[:8]}...)", expanded=False):
-                        st.text_area("Content", chunk.content, height=150, disabled=True)
+                    with st.expander("Chunk %d — ID: %s… (%d 字符)" % (i + 1, chunk.id[:12], len(chunk.content)), expanded=False):
+                        st.markdown("**Chunk 内容**（据此判断是否应作为某 query 的 ground truth）")
+                        st.text_area(
+                            "块正文",
+                            chunk.content or "(空)",
+                            height=200,
+                            disabled=True,
+                            key="content_%s_%s" % (chunk.id, i),
+                            label_visibility="collapsed",
+                        )
+                        st.markdown("**Chunk ID**（可复制到 golden test set 的 expected_chunk_ids）")
+                        st.code(chunk.id, language=None)
                         st.json(chunk.metadata)
-                        if chunk.images:
-                            st.info(f"Contains {len(chunk.images)} images")
+                        num_imgs = len(chunk.images) if isinstance(chunk.images, list) else 0
+                        if num_imgs:
+                            st.info("Contains %d images" % num_imgs)
 
             with tab2:
                 # Aggregate images

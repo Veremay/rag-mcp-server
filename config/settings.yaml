@@ -3,7 +3,7 @@ llm:
   # Options: azure | openai (supports compatible APIs) | ollama
   # Note: Use 'openai' provider with 'base_url' for compatible services (e.g., vLLM, Moonshot, etc.)
   provider: openai
-  model: qwen-turbo # deepseek-v3.2
+  model: qwen-turbo # Qwen/Qwen3.5-9B # # deepseek-v3.2
   # azure_endpoint: "${AZURE_ENDPOINT}"
   api_key: "${ALIYUN_API_KEY}"
   base_url: "${ALIYUN_BASE_URL}"

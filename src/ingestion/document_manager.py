@@ -16,6 +16,58 @@ from src.libs.loader.file_integrity import FileIntegrityRegistry
 from src.libs.vector_store.base_vector_store import BaseVectorStore, VectorRecord
 
 
+def _image_count_from_metadata_value(images_meta: Any) -> int:
+    """
+    从 metadata 的 images 字段解析出图片数量。
+    Chroma 存的是 JSON 字符串；兼容 list、可求长序列，以便正确统计。
+    """
+    return len(_images_list_from_metadata_value(images_meta))
+
+
+def _images_list_from_metadata_value(images_meta: Any) -> List[Dict[str, Any]]:
+    """
+    从 metadata 的 images 字段解析出图片项列表（用于详情展示与删除）。
+    兼容 Chroma 存的 JSON 字符串及 list、bytes 等。
+    """
+    if images_meta is None:
+        return []
+    if isinstance(images_meta, bytes):
+        try:
+            images_meta = images_meta.decode("utf-8")
+        except Exception:
+            return []
+    if isinstance(images_meta, str):
+        s = (images_meta or "").strip()
+        if not s:
+            return []
+        try:
+            parsed = json.loads(s)
+            if isinstance(parsed, list):
+                return [x for x in parsed if isinstance(x, dict)]
+            return []
+        except json.JSONDecodeError:
+            return []
+    if isinstance(images_meta, list):
+        return [x for x in images_meta if isinstance(x, dict)]
+    if hasattr(images_meta, "__iter__") and not isinstance(images_meta, (str, dict)):
+        return [x for x in images_meta if isinstance(x, dict)]
+    return []
+
+
+def _get_images_value_from_record_metadata(metadata: Dict[str, Any]) -> Any:
+    """
+    从单条 record 的 metadata 中取出 images 值。
+    兼容键名 "images" / "Images"（Chroma 或序列化可能改变键名）。
+    """
+    v = metadata.get("images")
+    if v is not None:
+        return v
+    for k, val in metadata.items():
+        if k is not None and str(k).lower() == "images":
+            return val
+    return None
+
+
 @dataclass
 class DocumentInfo:
     """列表项：按 source_path 聚合的文档摘要，含块数与图片数便于 Dashboard 展示。"""
@@ -123,18 +175,14 @@ class DocumentManager:
             doc_info = docs_map[source]
             doc_info.chunk_count += 1
             
-            # Check for images in metadata
-            images_meta = record.metadata.get("images")
-            if images_meta:
-                if isinstance(images_meta, str):
-                    try:
-                        images_list = json.loads(images_meta)
-                        if isinstance(images_list, list):
-                            doc_info.image_count += len(images_list)
-                    except json.JSONDecodeError:
-                        pass
-                elif isinstance(images_meta, list):
-                    doc_info.image_count += len(images_meta)
+            # 统计 images：优先用标量 image_count（ingest 时写入，不受 Chroma 大值截断影响），否则解析 images
+            n_imgs = record.metadata.get("image_count")
+            if n_imgs is not None and isinstance(n_imgs, (int, float)):
+                doc_info.image_count += int(n_imgs)
+            else:
+                images_meta = _get_images_value_from_record_metadata(record.metadata)
+                if images_meta is not None:
+                    doc_info.image_count += _image_count_from_metadata_value(images_meta)
         
         return list(docs_map.values())
 
@@ -160,17 +208,7 @@ class DocumentManager:
         chunks: List[ChunkDetail] = []
         for record in records:
             images: List[Dict[str, Any]] = []
-            images_meta = record.metadata.get("images")
-            if images_meta:
-                if isinstance(images_meta, str):
-                    try:
-                        parsed = json.loads(images_meta)
-                        if isinstance(parsed, list):
-                            images = parsed
-                    except json.JSONDecodeError:
-                        pass
-                elif isinstance(images_meta, list):
-                    images = images_meta # type: ignore
+            images = _images_list_from_metadata_value(_get_images_value_from_record_metadata(record.metadata))
 
             chunks.append(ChunkDetail(
                 id=record.id,
@@ -216,20 +254,8 @@ class DocumentManager:
         # 2. Find and delete images
         deleted_images_count = 0
         for record in records:
-            images_meta = record.metadata.get("images")
-            if images_meta:
-                images_list: List[Dict[str, Any]] = []
-                if isinstance(images_meta, str):
-                    try:
-                        parsed = json.loads(images_meta)
-                        if isinstance(parsed, list):
-                            images_list = parsed
-                    except json.JSONDecodeError:
-                        pass
-                elif isinstance(images_meta, list):
-                    images_list = images_meta # type: ignore
-                
-                for img in images_list:
+            images_list = _images_list_from_metadata_value(_get_images_value_from_record_metadata(record.metadata))
+            for img in images_list:
                     img_id = img.get("image_id")
                     if img_id:
                         if self.image_storage.delete(collection=collection, image_id=str(img_id)):

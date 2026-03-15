@@ -83,6 +83,12 @@ class VectorUpserter:
             metadata.setdefault("source_path", source_path)
             metadata.setdefault("section_path", section_path)
             metadata.setdefault("content_hash", content_hash)
+            # 写入标量 image_count 便于 Dashboard 统计；Chroma 可能截断大 JSON，images 未必完整返回
+            imgs = metadata.get("images")
+            if isinstance(imgs, list):
+                metadata["image_count"] = len(imgs)
+            else:
+                metadata.setdefault("image_count", 0)
             backend = getattr(
                 getattr(self._settings, "vector_store", None), "backend", None
             )

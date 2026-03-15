@@ -154,24 +154,57 @@ class ChromaStore(BaseVectorStore):
 
         Returns:
             List of VectorRecord objects.
-         """
-        # If filters is None or empty dict, we assume "no filter" and fetch all records.
-        # Note: Fetching all records might be heavy for large collections.
+
+        无过滤时部分 Chroma 版本对 get(where=None) 会报 "Error finding id"，
+        因此改为先 count() 再 get(limit=count)，用有界查询避免该内部错误。
+        """
         where_clause = filters if filters else None
-        
-        results = self.collection.get(where=where_clause, include=["metadatas", "documents", "embeddings"])
-        if not results or not results["ids"]:
+        include = ["metadatas", "documents", "embeddings"]
+
+        if where_clause is not None:
+            # 有过滤条件：直接 get(where=...)
+            results = self.collection.get(where=where_clause, include=include)
+        else:
+            # 无过滤（拉取全部）：先取总数再 get(limit=N)，避免无界 get 触发 Chroma 内部错误
+            try:
+                total = self.collection.count()
+            except Exception:
+                total = 0
+            if total <= 0:
+                return []
+            results = self.collection.get(limit=total, include=include)
+
+        # 避免对 Chroma 返回的 numpy 数组做布尔判断（如 not results["ids"]），否则报 "truth value of an array is ambiguous"
+        if results is None:
             return []
-            
+        ids = results.get("ids")
+        if ids is None or len(ids) == 0:
+            return []
+
         records = []
-        # Chroma returns lists of items
-        count = len(results["ids"])
-        for i in range(count):
-            records.append(VectorRecord(
-                id=results["ids"][i],
-                embedding=results["embeddings"][i] if results.get("embeddings") is not None else [],
-                content=results["documents"][i] if results.get("documents") is not None else "",
-                metadata=results["metadatas"][i] if results.get("metadatas") is not None else {},
-            ))
+        n = len(ids)
+        # 用 is not None 代替 or []，避免对 numpy 数组做布尔判断触发 ambiguous 错误
+        embeddings = results.get("embeddings")
+        documents = results.get("documents")
+        metadatas = results.get("metadatas")
+        if embeddings is None:
+            embeddings = []
+        if documents is None:
+            documents = []
+        if metadatas is None:
+            metadatas = []
+        for i in range(n):
+            emb = list(embeddings[i]) if i < len(embeddings) else []
+            doc = documents[i] if i < len(documents) else ""
+            meta = metadatas[i] if i < len(metadatas) else {}
+            metadata = dict(meta) if isinstance(meta, dict) else {}
+            records.append(
+                VectorRecord(
+                    id=str(ids[i]) if i < len(ids) else "",
+                    embedding=emb,
+                    content=doc,
+                    metadata=metadata,
+                )
+            )
         return records
 
