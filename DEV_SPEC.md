@@ -172,8 +172,11 @@
 设计要点：
 - **明确分层职责**：
 	- Loader：负责把原始文件解析为统一的 `Document` 对象（`text` + `metadata`）。**在当前阶段，仅实现 PDF 格式的 Loader。**
-		- 统一输出格式采用规范化 Markdown作为 `Document.text`：这样可以更好的配合后面的Splitte（Langchain RecursiveCharacterTextSplitte））方法产出高质量切块。
-		- Loader 同时抽取/补齐基础 metadata（如 `source_path`, `doc_type=pdf`, `page`, `title/heading_outline`, `images` 引用列表等），为定位、回溯与后续 Transform 提供依据。
+		- 统一输出格式采用规范化 Markdown 作为 `Document.text`：这样可以更好的配合后面的 Splitter（Langchain RecursiveCharacterTextSplitter）方法产出高质量切块。
+		- **PDF 解析方式**：通过 `config/settings.yaml` 中 `ingestion.loader.pdf_parser` 在两种方式间切换：
+			- **`original`**：使用 pypdf 提取文本 + 内嵌图片提取（XObject），适合可复制文本的 PDF。
+			- **`deepdoc`**：使用本仓库内实现的 **DeepDoc** 解析器（pdfplumber 转图 + OCR + 版面识别 + 表格/图区域识别 + crop），适合扫描版、复杂版面、含表格/插图的 PDF。详见下文「PDF 预处理（DeepDoc）」。
+		- Loader 同时抽取/补齐基础 metadata（如 `source_path`, `doc_type=pdf`, `page`, `title/heading_outline`, `images`/`image_refs` 引用列表等），为定位、回溯与后续 Transform 提供依据；DeepDoc 路径还会产出 `metadata["tables"]`（表格/图项列表，每项含 `text` 与 `image_ref`），供 Split 阶段将表格/图单独成 Chunk。
 	- Splitter：基于 Markdown 结构（标题/段落/代码块等）与参数配置把 `Document` 切为若干 Chunk，保留原始位置与上下文引用。
 	- Transform：可插入的处理步骤（ImageCaptioning、OCR、code-block normalization、html-to-text cleanup 等），Transform 可以选择把额外信息追加到 chunk.text 或放入 chunk.metadata（推荐默认追加到 text 以保证检索覆盖）。
 	- Embed & Upsert：按批次计算 embedding，并上载到向量存储；支持向量 + metadata 上载，并提供幂等 upsert 策略（基于 id/hash）。
@@ -187,9 +190,30 @@
 		- 动作：检索 `ingestion_history` 表，若发现相同 Hash 且状态为 `success` 的记录，则认定该文件未发生变更，直接跳过后续所有处理（解析、切分、LLM重写），实现**零成本 (Zero-Cost)** 的增量更新。
 	- **解析与标准化**：
 		- 当前范围：**仅实现 PDF -> canonical Markdown 子集** 的转换。
-	- 技术选型（Python PDF -> Markdown）：
-		- **首选：MarkItDown**（作为默认 PDF 解析/转换引擎）。优点是直接产出 Markdown 形态文本，便于与后续 `RecursiveCharacterTextSplitter` 的 separators 配合。
-	- 输出标准 `Document`：`id|source|text(markdown)|metadata`。metadata 至少包含 `source_path`, `doc_type`, `title/heading_outline`, `page/slide`（如适用）, `images`（图片引用列表）。
+	- **技术选型（PDF 解析）**：
+		- **`pdf_parser: original`**：沿用 pypdf 提取文本 + 内嵌图片提取；可选配合 MarkItDown 等产出 Markdown 形态，便于与 `RecursiveCharacterTextSplitter` 的 separators 配合。
+		- **`pdf_parser: deepdoc`**：使用本仓库内 **DeepDoc**（移植自 RAGFlow）：pdfplumber 将每页转为图像 → OCR（可选）→ 版面识别（LayoutRecognizer）→ 表格结构识别（TableStructureRecognizer）→ 按区域 crop 表格/图。正文拼接为 `Document.text`，表格与 Figure 写入 `metadata["tables"]`，每项含 `text`（表格 HTML 或图注）和 `image_ref`（crop 图路径）；所有 crop 路径同时写入 `metadata["image_refs"]`。依赖与迁移细节见 `docs/deepdoc-migration-guide.md`。
+	- **PDF 预处理（DeepDoc）— 流程概要**：
+		1. **页面转图与字符**：pdfplumber 打开 PDF，每页 `to_image()` 得到页面图像，`dedupe_chars().chars` 得到字符框（用于与 OCR 结果融合）。
+		2. **OCR**：对每页图像调用 DeepDoc OCR（检测 + 识别），得到带坐标的文本框；若页面已有 pdfplumber 字符则与之合并。
+		3. **版面识别**：LayoutRecognizer 对页面图像与文本框做版面分析，为每个区域打上 `layout_type`（Text / Title / Figure / Table / Figure caption / Table caption 等）。
+		4. **表格结构识别**：对版面中 `table` 区域用 TableStructureRecognizer 做行列/表头/合并单元格识别，`construct_table(..., html=True)` 产出表格 HTML。
+		5. **文本合并与顺序**：按列/阅读顺序合并文本框（含 XGBoost 阅读顺序模型等），得到正文 sections。
+		6. **表格与图片抽取**：根据 `layout_type == "table"` 或 `"figure"` 从页面图像中 crop 对应区域；表格得到 (crop 图, HTML)，Figure 得到 (crop 图, 图注文本)。两者统一放入 `tables` 列表，Loader 将每项保存为本地 PNG、路径写入 `image_refs` 与 `metadata["tables"][i].image_ref`。
+	- **正文与表格/图在 Pipeline 中的分工**：
+		- **正文（文本）**：Loader 产出的 `document.text` 是文档主体，一般为 Markdown 形态（original 路径为 pypdf 提取文本，deepdoc 路径为版面识别后按阅读顺序合并的正文）。Split 阶段对 `document.text` 使用 `RecursiveCharacterTextSplitter` 按语义边界（标题、段落等）切分，得到**正文 Chunk**，是检索的主要来源。
+		- **表格与图片**（仅 DeepDoc 或带图片的 original）：表格/图以 `metadata["tables"]` 或 `image_refs` 存在；Split 时先为每个表格/图生成一个 Chunk（`chunk_type=table`），再对正文切分。正文 Chunk 与表格/图 Chunk 合并后**统一**经 Transform、双路编码、Upsert，共同参与检索。
+	- **表格与图片的嵌入与使用**（DeepDoc 路径）：
+		- **Split 阶段**：若存在 `document.metadata["tables"]`，先为每一项生成一个独立 Chunk（`chunk_type=table`，`text` 为表格 HTML 或图注，若有则带 `image_ref`），再对 `document.text` 做常规切分；表格/图 Chunk 与正文 Chunk 一起参与后续 Transform、Dense/Sparse 编码与检索。
+		- **图片迁库**：`_process_images` 将 `image_refs` 中的路径迁入 ImageStorage（按 collection），并同步更新 `metadata["tables"][i]["image_ref"]`，保证最终 table chunk 的 `image_ref` 指向存储后的路径。
+	- **表格与图片的存储与 Embedding 方式**（回答「存什么、对谁做向量」）：
+		- **表格**：
+			- **存储**：表格内容以 **HTML 字符串** 存入 Chunk 的 `text`；该表格区域的 crop 图路径存入 `metadata.image_ref`（用于检索命中后展示）。
+			- **Embedding**：**只对表格 HTML 文本**做 Dense/Sparse 编码，不另做「表格 caption」；crop 图不参与向量化。即：表格 = HTML（可检索的语义）+ crop 图（仅展示），**没有**「HTML + caption 一起存再 embedding」——当前实现中表格的语义完全由 HTML 承载。
+		- **图片**：
+			- **正文内嵌图**（Loader 在正文中插入了 `![Image](path)` 的块）：Transform 阶段的 **ImageCaptioner** 会读取该路径，用 **多模态模型（Vision LLM，如 GPT-4o / Qwen-VL）** 对图片生成文字描述，并将描述追加到 Chunk 正文（如 `[Image Captions]\n...`）。**Embedding 是对「原文 + 图注描述」整体做的**，即「图 → 多模态模型翻译成文本 → 对该文本做 embedding」；图片本身不直接向量化。
+			- **DeepDoc 识别的 Figure**：Chunk 的 `text` 存的是**版面识别的图注**（OCR/版面得到的 caption），`metadata.image_ref` 存 crop 图路径。**Embedding 直接对图注文本**做；当前 ImageCaptioner 只识别正文里的 `![Image](path)`，故 DeepDoc 的 figure chunk 通常**不会**再调用 Vision LLM。若希望对 Figure 也做「多模态翻译再 embedding」，可扩展（例如根据 `metadata.image_ref` 调用 Vision LLM 并将描述追加到 chunk.text）。
+	- 输出标准 `Document`：`id|source|text(markdown)|metadata`。metadata 至少包含 `source_path`, `doc_type`, `title/heading_outline`, `page/slide`（如适用）, `images`/`image_refs`（图片引用）；DeepDoc 路径还包含 `tables`（列表，每项 `{text, image_ref}`）。
 	- Loader 不负责切分：只做“格式统一 + 结构抽取 + 引用收集”，确保切分策略可独立迭代与度量。
 
 - Splitter（LangChain 负责切分；独立、可控）
@@ -732,28 +756,39 @@ observability:
 
 **1. Loader 阶段：图片提取与引用收集**
 
-- **提取策略**：
-  - 解析文档时识别嵌入的图片资源（PDF 中的 XObject、PPT 中的媒体文件、Markdown 中的 `![]()` 引用）。
-  - 为每张图片生成全局唯一的 `image_id`（建议格式：`{doc_hash}_{page}_{seq}`）。
-  - 将图片二进制数据提取并暂存，记录其在原文档中的位置信息。
+- **两种 PDF 路径**：
+  - **`pdf_parser: original`**：从 PDF 中提取嵌入的 XObject 图片，生成 `image_id`，在 Document 中维护 `images`/`image_refs`，正文中可插入占位符或 `![Image](path)`。
+  - **`pdf_parser: deepdoc`**：通过 **版面识别** 得到 Figure/Table 区域，从每页渲染图中 **crop** 出表格与插图；表格再经 TableStructureRecognizer 得到 HTML。表格与 Figure 统一放入 `metadata["tables"]`，每项为 `{text: 表格 HTML 或图注, image_ref: crop 图路径}`；所有 crop 图路径同时写入 `metadata["image_refs"]`。crop 图先写入临时目录（如 `data/images/`），后续由 Pipeline 的 `_process_images` 迁入按 collection 的 ImageStorage 并更新 `tables[].image_ref`。因此 **DeepDoc 路径下，表格和插图都以「文本（HTML/图注）+ 一张 crop 图」的形式参与后续切分与嵌入**。
 
-- **引用标记**：
-  - 在转换后的 Markdown 文本中，于图片原始位置插入占位符（如 `[IMAGE: {image_id}]`）。
-  - 在 Document 的 Metadata 中维护 `images` 列表，记录每张图片的 `image_id`、原始路径、页码、尺寸等基础信息。
+- **提取策略（通用）**：
+  - 解析文档时识别嵌入的图片资源（PDF 的 XObject 或 DeepDoc 的版面 crop、PPT 中的媒体文件、Markdown 的 `![]()` 引用）。
+  - 为每张图片生成唯一标识（如 `image_id` 或文件路径），记录在原文档中的位置与类型（表格/图）。
+
+- **引用与元数据**：
+  - 在 Document 的 Metadata 中维护 `image_refs`（路径列表）及 DeepDoc 路径下的 `tables`（每项含 `text` 与 `image_ref`）。
+  - 正文中可在对应位置插入占位符或 `![Image](path)`，便于 Splitter 保持图文关联。
 
 - **存储原始图片**：
-  - 将提取的图片保存至本地文件系统的约定目录（如 `data/images/{collection}/{image_id}.png`）。
-  - 仅保存需要的图片格式（推荐统一转换为 PNG/JPEG），控制存储体积。
+  - 将提取或 crop 的图片保存至约定目录（如 `data/images/`），再由 `_process_images` 迁入 `data/images/{collection}/` 等；格式推荐 PNG/JPEG，控制体积。
 
 **2. Splitter 阶段：保持图文关联**
 
-- **关联保持原则**：
+- **正文 Chunk（主体）**：
+  - 对 `document.text`（Loader 产出的正文，Markdown 形态）使用 `RecursiveCharacterTextSplitter` 按语义边界切分，得到**正文 Chunk**，是检索的主要来源；每个 Chunk 带 `chunk_index`、来源等 metadata。
+- **DeepDoc 表格与图片的 Chunk 化**（补充）：
+  - 若 `document.metadata` 含有 `tables`（DeepDoc 路径），Pipeline 在切分正文**之前**先为每个表格/图项生成一个独立 Chunk：`text` 为该项的 `text`（表格 HTML 或图注），`metadata.chunk_type=table`，若有 `image_ref` 则写入 `metadata.image_ref`。这些 Chunk 与正文切分得到的 Chunk 一起进入 Transform、双路编码与检索；**表格/图的语义由 HTML 或图注文本参与 Dense/Sparse 嵌入**，crop 图路径仅用于检索命中后的展示。
+- **关联保持原则（正文内图片）**：
   - 图片引用标记应与其说明性文字（Caption、前后段落）尽量保持在同一 Chunk 中。
   - 若图片出现在章节开头或结尾，切分时应将其归入语义上最相关的 Chunk。
 
 - **Chunk Metadata 扩展**：
-  - 每个 Chunk 的 Metadata 中增加 `image_refs: List[image_id]` 字段，记录该 Chunk 关联的图片列表。
-  - 此字段用于后续 Transform 阶段定位需要处理的图片，以及检索命中后定位需要返回的图片。
+  - 每个 Chunk 的 Metadata 中可包含 `image_ref`（单图）或 `image_refs`（多图），记录该 Chunk 关联的图片路径。
+  - 用于后续 Transform 阶段定位需要生成 Caption 的图片，以及检索命中后定位需要返回的图片。
+
+- **表格与图片：存什么、对谁做 Embedding**（与 3.1.1 对应）：
+  - **表格**：Chunk.text = **表格 HTML**，metadata.image_ref = crop 图路径。**只对 HTML 文本做 Dense/Sparse 编码**，不另做 caption；crop 图仅用于展示。
+  - **图片（正文内嵌图）**：正文中含 `![Image](path)` 时，Transform 阶段用 **多模态模型（Vision LLM）** 对图片生成描述并追加到 chunk.text；**Embedding 对「原文 + 图注描述」做**，即「图 → 多模态翻译成文本 → 文本做 embedding」。
+  - **图片（DeepDoc Figure）**：Chunk.text = 版面图注，embedding 用该图注；当前不对 figure 再调 Vision LLM，若需可扩展。
 
 **3. Transform 阶段：图片理解与描述生成**
 
@@ -1415,8 +1450,9 @@ smart-knowledge-hub/
 
 | 模块 | 职责 | 关键技术点 |
 |-----|-----|----------|
-| `pipeline.py` | Pipeline 流程编排 | 串行执行，异常处理，增量更新 |
-| `pdf_loader.py` | PDF 文档解析 | MarkItDown，Markdown 标准化输出 |
+| `pipeline.py` | Pipeline 流程编排 | 串行执行，异常处理，增量更新；按 `pdf_parser` 选 Loader；表格先成 Chunk 再切正文 |
+| `pdf_loader.py` | PDF 文档解析（original） | pypdf + 内嵌图提取，Markdown 标准化输出 |
+| `deepdoc_pdf_loader.py` | PDF 文档解析（deepdoc） | pdfplumber→OCR→版面→表格/图 crop，输出 text + metadata.tables/image_refs，详见 `docs/deepdoc-migration-guide.md` |
 | `file_integrity.py` | 文件去重 | SHA256 哈希，增量检测 |
 | `recursive_splitter.py` | 文本切分 | LangChain RecursiveCharacterTextSplitter |
 | `chunk_refiner.py` | Chunk 智能重组 | LLM 二次加工，去噪合并 |
@@ -1447,7 +1483,70 @@ smart-knowledge-hub/
 
 ### 5.4 数据流说明
 
+#### Ingestion Pipeline 总览
+
+单文件摄取流水线（`IngestionPipeline.ingest`）按以下顺序执行，各阶段输入输出与代码阶段一一对应。
+
+**内容分工**：文档主体是**正文（文本）**，由 Loader 产出为 `Document.text`（Markdown 形态）；可选地还有表格/图（DeepDoc 时放入 `metadata["tables"]`）。Split 阶段先为每个表格/图生成一个 Chunk，再对 **正文 `document.text`** 按语义边界切分得到若干**正文 Chunk**；正文 Chunk 与表格/图 Chunk 合并后一起进入 Transform → Encode → Upsert，共同参与检索。因此**正文是主要检索来源**，表格/图为补充。
+
+```
+                         ┌─────────────────────────────────────────────────────────────────┐
+                         │                    Ingestion Pipeline (单文件)                    │
+                         └─────────────────────────────────────────────────────────────────┘
+
+  原始文件 (PDF / ...)
+         │
+         ▼
+  ┌──────────────┐
+  │ 1. Integrity  │  计算 SHA256，查 ingestion_history
+  │  (去重)       │  已存在且未 force → 直接返回 skipped
+  └──────┬───────┘
+         │ 新/已变更
+         ▼
+  ┌──────────────┐
+  │ 2. Loader    │  产出正文 → document.text (Markdown)
+  │  (解析)      │  original: pypdf 文本 + 内嵌图；deepdoc: OCR+版面 → 正文 + 表格/图 crop
+  └──────┬───────┘
+         │ Document (正文 text, metadata.image_refs[, tables])
+         ▼
+  ┌──────────────┐
+  │ 3. Process   │  将 image_refs 迁入 ImageStorage(collection)
+  │   Images     │  更新 document.text 内路径与 metadata.tables[].image_ref
+  └──────┬───────┘
+         │ Document (正文与引用路径已就绪)
+         ▼
+  ┌──────────────┐
+  │ 4. Split     │  表格/图：metadata.tables 每项 → 1 个 Chunk (chunk_type=table)
+  │  (切分)      │  正文：对 document.text 做 RecursiveCharacterTextSplitter → 正文 Chunks
+  └──────┬───────┘
+         │ Chunks[] = 正文 Chunks + 表格/图 Chunks（统一进入后续阶段）
+         ▼
+  ┌──────────────┐
+  │ 5. Transform │  ChunkRefiner → MetadataEnricher → ImageCaptioner
+  │  (增强)      │  正文块：重写/去噪、元数据注入；含图块：可选图片描述注入正文
+  └──────┬───────┘
+         │ Enriched Chunks[]
+         ▼
+  ┌──────────────┐
+  │ 6. Encode    │  对 Chunk.text 做 Dense + Sparse：正文=切分文本；表格=HTML；
+  │  (编码)      │  图=图注或「原文+Vision LLM 描述」。同一批 chunk 同 id。
+  └──────┬───────┘
+         │ BatchProcessResult (dense_vectors, sparse_vectors, chunk_ids, ...)
+         ▼
+  ┌──────────────┐
+  │ 7. Upsert    │  VectorUpserter → Chroma (幂等)；BM25Indexer → 本地 BM25
+  │  (写入)      │  正文与表格/图 Chunk 一并写入，共同参与检索
+  └──────┬───────┘
+         │
+         ▼
+  ┌──────────────┐
+  │ 8. Finalize  │  写入 ingestion_history (hash, success)，供下次去重
+  └──────────────┘
+```
+
 #### 5.4.1 离线数据摄取流 (Ingestion Flow)
+
+（与上方 Pipeline 对应；下图侧重数据形态。**正文**为 document.text，是主体内容；表格/图为补充。）
 
 ```
 原始文档 (PDF)
@@ -1459,32 +1558,39 @@ smart-knowledge-hub/
 └────────┬────────┘
          │ 新文件/已变更
          ▼
-┌─────────────────┐
-│     Loader      │  PDF → Markdown + 图片提取 + 元数据收集
-│   (MarkItDown)  │
-└────────┬────────┘
-         │ Document (text + metadata.images)
+┌─────────────────────────────────────────────┐
+│     Loader                                  │
+│  正文 → document.text (Markdown)；           │
+│  original: pypdf 文本 + 内嵌图；              │
+│  deepdoc: OCR+版面 → 正文 + metadata.tables  │
+└────────┬────────────────────────────────────┘
+         │ Document (正文 text, image_refs[, tables])
          ▼
 ┌─────────────────┐
-│    Splitter     │  按语义边界切分，保留图片引用
-│ (Recursive)     │
+│ Process Images  │  图片迁入 ImageStorage，更新正文内路径与 tables[].image_ref
 └────────┬────────┘
-         │ Chunks[] (with image_refs)
+         │
          ▼
 ┌─────────────────┐
-│   Transform     │  LLM 重写 + 元数据注入 + 图片描述生成
+│    Splitter     │  表格/图：每项 1 Chunk；正文：对 document.text 按语义切分
+│ (Recursive)     │  → 正文 Chunks + 表格/图 Chunks
+└────────┬────────┘
+         │ Chunks[] (正文块为主 + 表格/图块，含 image_ref)
+         ▼
+┌─────────────────┐
+│   Transform     │  正文：重写/去噪、元数据注入；含图块：图片描述注入
 │ (Enrichment)    │
 └────────┬────────┘
-         │ Enriched Chunks[] (with captions in text)
+         │ Enriched Chunks[] (正文与表格/图统一增强)
          ▼
 ┌─────────────────┐
-│   Embedding     │  Dense (OpenAI) + Sparse (BM25) 双路编码
+│   Embedding     │  所有 Chunk（正文+表格/图）Dense + Sparse 双路编码
 │  (Dual Path)    │
 └────────┬────────┘
          │ Vectors + Chunks + Metadata
          ▼
 ┌─────────────────┐
-│    Upsert       │  Chroma Upsert (幂等) + BM25 Index + 图片存储
+│    Upsert       │  Chroma (幂等) + BM25；正文与表格/图一并写入、共同检索
 │   (Storage)     │
 └─────────────────┘
 ```
@@ -1580,6 +1686,11 @@ rerank:
   backend: cross_encoder    # none | cross_encoder | llm
   model: cross-encoder/ms-marco-MiniLM-L-6-v2
   top_m: 30
+
+# Ingestion Loader（PDF 解析方式）
+ingestion:
+  loader:
+    pdf_parser: deepdoc    # original：pypdf+内嵌图；deepdoc：OCR+版面+表格/图 crop（需安装 [deepdoc]）
 
 # 评估配置
 evaluation:

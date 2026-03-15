@@ -119,8 +119,8 @@ class QueryProcessor:
         Returns:
             QueryProcessResult containing keywords and filters.
 
-        将原始 query 解析为 keywords 与 filters。先 _extract_filters 再对剩余文本
-        _extract_keywords，这样过滤条件不会进入分词，避免把「collection:docs」当成检索词。
+        将原始 query 解析为 keywords 与 filters。先 _extract_filters 再对剩余文本_extract_keywords，
+        这样过滤条件不会进入分词，避免把「collection:docs」当成检索词。
         若过滤后无关键词则退回整句分词，保证即使用户只写了过滤条件也有一定召回。
         trace 用于记录阶段耗时与结果便于排查。
         """
