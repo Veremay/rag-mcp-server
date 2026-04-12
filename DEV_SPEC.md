@@ -192,7 +192,7 @@
 		- 当前范围：**仅实现 PDF -> canonical Markdown 子集** 的转换。
 	- **技术选型（PDF 解析）**：
 		- **`pdf_parser: original`**：沿用 pypdf 提取文本 + 内嵌图片提取；可选配合 MarkItDown 等产出 Markdown 形态，便于与 `RecursiveCharacterTextSplitter` 的 separators 配合。
-		- **`pdf_parser: deepdoc`**：使用本仓库内 **DeepDoc**（移植自 RAGFlow）：pdfplumber 将每页转为图像 → OCR（可选）→ 版面识别（LayoutRecognizer）→ 表格结构识别（TableStructureRecognizer）→ 按区域 crop 表格/图。正文拼接为 `Document.text`，表格与 Figure 写入 `metadata["tables"]`，每项含 `text`（表格 HTML 或图注）和 `image_ref`（crop 图路径）；所有 crop 路径同时写入 `metadata["image_refs"]`。依赖与迁移细节见 `docs/deepdoc-migration-guide.md`。
+		- **`pdf_parser: deepdoc`**：使用本仓库内 **DeepDoc**：pdfplumber 将每页转为图像 → OCR（可选）→ 版面识别（LayoutRecognizer）→ 表格结构识别（TableStructureRecognizer）→ 按区域 crop 表格/图。正文拼接为 `Document.text`，表格与 Figure 写入 `metadata["tables"]`，每项含 `text`（表格 HTML 或图注）和 `image_ref`（crop 图路径）；所有 crop 路径同时写入 `metadata["image_refs"]`。依赖与迁移细节见 `docs/deepdoc-migration-guide.md`。
 	- **PDF 预处理（DeepDoc）— 流程概要**：
 		1. **页面转图与字符**：pdfplumber 打开 PDF，每页 `to_image()` 得到页面图像，`dedupe_chars().chars` 得到字符框（用于与 OCR 结果融合）。
 		2. **OCR**：对每页图像调用 DeepDoc OCR（检测 + 识别），得到带坐标的文本框；若页面已有 pdfplumber 字符则与之合并。
@@ -211,7 +211,7 @@
 			- **存储**：表格内容以 **HTML 字符串** 存入 Chunk 的 `text`；该表格区域的 crop 图路径存入 `metadata.image_ref`（用于检索命中后展示）。
 			- **Embedding**：**只对表格 HTML 文本**做 Dense/Sparse 编码，不另做「表格 caption」；crop 图不参与向量化。即：表格 = HTML（可检索的语义）+ crop 图（仅展示），**没有**「HTML + caption 一起存再 embedding」——当前实现中表格的语义完全由 HTML 承载。
 		- **图片**：
-			- **正文内嵌图**（Loader 在正文中插入了 `![Image](path)` 的块）：Transform 阶段的 **ImageCaptioner** 会读取该路径，用 **多模态模型（Vision LLM，如 GPT-4o / Qwen-VL）** 对图片生成文字描述，并将描述追加到 Chunk 正文（如 `[Image Captions]\n...`）。**Embedding 是对「原文 + 图注描述」整体做的**，即「图 → 多模态模型翻译成文本 → 对该文本做 embedding」；图片本身不直接向量化。
+			- **正文内嵌图**（Loader 在正文中插入了 `![Image](path)` 的块）：Transform 阶段的 **ImageCaptioner** 会读取该路径，用 **多模态模型** 对图片生成文字描述，并将描述追加到 Chunk 正文（如 `[Image Captions]\n...`）。**Embedding 是对「原文 + 图注描述」整体做的**，即「图 → 多模态模型翻译成文本 → 对该文本做 embedding」；图片本身不直接向量化。
 			- **DeepDoc 识别的 Figure**：Chunk 的 `text` 存的是**版面识别的图注**（OCR/版面得到的 caption），`metadata.image_ref` 存 crop 图路径。**Embedding 直接对图注文本**做；当前 ImageCaptioner 只识别正文里的 `![Image](path)`，故 DeepDoc 的 figure chunk 通常**不会**再调用 Vision LLM。若希望对 Figure 也做「多模态翻译再 embedding」，可扩展（例如根据 `metadata.image_ref` 调用 Vision LLM 并将描述追加到 chunk.text）。
 	- 输出标准 `Document`：`id|source|text(markdown)|metadata`。metadata 至少包含 `source_path`, `doc_type`, `title/heading_outline`, `page/slide`（如适用）, `images`/`image_refs`（图片引用）；DeepDoc 路径还包含 `tables`（列表，每项 `{text, image_ref}`）。
 	- Loader 不负责切分：只做“格式统一 + 结构抽取 + 引用收集”，确保切分策略可独立迭代与度量。
